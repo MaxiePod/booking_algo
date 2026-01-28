@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PodPlay Savings Calculator – Embed Demo</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #f0f2f5;
+        padding: 40px 20px;
+      }
+      .page-header {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+      .page-header h1 {
+        font-size: 24px;
+        color: #1a1a1a;
+        margin-bottom: 8px;
+      }
+      .page-header p {
+        font-size: 14px;
+        color: #666;
+      }
+      .embed-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+      }
+      .code-example {
+        max-width: 1000px;
+        margin: 32px auto 0;
+        padding: 20px;
+        background: #1a1a1a;
+        border-radius: 8px;
+        color: #e0e0e0;
+        font-family: 'Fira Code', monospace;
+        font-size: 13px;
+        overflow-x: auto;
+      }
+      .code-example code {
+        white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">
+      <h1>PodPlay Savings Calculator – Embed Demo</h1>
+      <p>This page demonstrates how the calculator widget loads via a script tag.</p>
+    </div>
+
+    <div class="embed-container">
+      <!-- This is the embed target. In production, the script src would point to your CDN. -->
+      <div
+        id="podplay-savings-calculator"
+        data-courts="8"
+        data-utilization="75"
+        data-price="80"
+        data-locked="60"
+        data-period="monthly"
+      ></div>
+    </div>
+
+    <div class="code-example">
+      <code>&lt;div id="podplay-savings-calculator" data-courts="8" data-price="80"&gt;&lt;/div&gt;
+&lt;script src="https://cdn.podplay.app/calculator/podplay-calculator.js" async&gt;&lt;/script&gt;</code>
+    </div>
+
+    <!-- In dev, load from dist-widget. In production, this would be a CDN URL. -->
+    <script src="../dist-widget/podplay-calculator.js"></script>
+  </body>
+</html>
