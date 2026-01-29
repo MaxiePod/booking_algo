@@ -36,7 +36,7 @@ export const borderRadius = {
 
 export const fonts = {
   family:
-    'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    'system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
   sizeSmall: '12px',
   sizeBase: '14px',
   sizeMd: '16px',

@@ -23,6 +23,28 @@ export function computeDurationBins(M: number, B: number): DurationBin[] {
   ];
 }
 
+/**
+ * Compute the weighted-average reservation duration from bin percentages.
+ * Bin 3 (the "M+2B+" bin) averages the range [M+2B, min(operatingMinutes, 240)].
+ */
+export function computeAvgDuration(
+  M: number, B: number, pcts: DurationBinPcts, operatingMinutes: number
+): number {
+  const bin0 = M;
+  const bin1 = M + B;
+  const bin2 = M + 2 * B;
+  // Bin 3: random between M+2B and min(operatingMinutes, 240)
+  const bin3Max = Math.min(operatingMinutes, 240);
+  const bin3Avg = bin3Max > bin2 ? (bin2 + bin3Max) / 2 : bin2;
+
+  return (
+    (pcts[0] / 100) * bin0 +
+    (pcts[1] / 100) * bin1 +
+    (pcts[2] / 100) * bin2 +
+    (pcts[3] / 100) * bin3Avg
+  );
+}
+
 export interface SimulatorInputs {
   numCourts: number;
   openHour: number;
@@ -33,6 +55,9 @@ export interface SimulatorInputs {
   slotBlockMin: number;
   durationBinPcts: DurationBinPcts;
   iterations: number;
+  pricePerHour: number;
+  lockPremiumPerHour: number;
+  varianceCV: number;
 }
 
 export interface SimulatorResults {
@@ -41,6 +66,11 @@ export interface SimulatorResults {
   deltaUtil: number;
   gapSaved: number;
   fragReduction: number;
+  revenueSmartPerDay: number;
+  revenueNaivePerDay: number;
+  savingsPerDay: number;
+  savingsPercent: number;
+  lockPremiumPerDay: number;
   /** A sample day's raw results for timeline visualization */
   sampleDay: {
     smart: AssignmentResult;
@@ -62,10 +92,13 @@ export const DEFAULT_SIM_INPUTS: SimulatorInputs = {
   numCourts: 6,
   openHour: 8,
   closeHour: 22,
-  reservationsPerDay: 25,
-  lockedPercent: 40,
+  reservationsPerDay: 30,
+  lockedPercent: 50,
   minReservationMin: 60,
   slotBlockMin: 30,
-  durationBinPcts: [25, 25, 25, 25],
+  durationBinPcts: [40, 30, 20, 10],
   iterations: 40,
+  pricePerHour: 80,
+  lockPremiumPerHour: 10,
+  varianceCV: 15,
 };

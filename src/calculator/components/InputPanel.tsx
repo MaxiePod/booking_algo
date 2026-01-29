@@ -6,6 +6,7 @@ import { InefficiencyCurve } from './InefficiencyCurve';
 import { LIMITS } from '../utils/constants';
 import { colors, fonts, spacing, borderRadius } from '../../shared/design-tokens';
 import type { CalculatorInputs } from '../../shared/types';
+import { DEFAULT_INPUTS } from '../../shared/types';
 
 interface InputPanelProps {
   inputs: CalculatorInputs;
@@ -13,6 +14,7 @@ interface InputPanelProps {
   onUtilizationChange: (v: number) => void;
   onPriceChange: (v: number) => void;
   onLockedChange: (v: number) => void;
+  onLockPremiumChange: (v: number) => void;
 }
 
 export const InputPanel: React.FC<InputPanelProps> = ({
@@ -21,6 +23,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
   onUtilizationChange,
   onPriceChange,
   onLockedChange,
+  onLockPremiumChange,
 }) => {
   return (
     <div style={styles.panel}>
@@ -41,6 +44,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         max={LIMITS.utilization.max}
         unit="%"
         onChange={onUtilizationChange}
+        defaultValue={DEFAULT_INPUTS.currentUtilizationPercent}
       />
 
       <CurrencyInput
@@ -58,6 +62,18 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         max={LIMITS.locked.max}
         unit="%"
         onChange={onLockedChange}
+        defaultValue={DEFAULT_INPUTS.lockedPercent}
+      />
+
+      <SliderInput
+        label="Lock Premium"
+        value={inputs.lockPremiumPerHour}
+        min={0}
+        max={50}
+        prefix="$"
+        unit="/hr"
+        onChange={onLockPremiumChange}
+        defaultValue={DEFAULT_INPUTS.lockPremiumPerHour}
       />
 
       <InefficiencyCurve

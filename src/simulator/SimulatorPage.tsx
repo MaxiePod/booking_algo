@@ -2,11 +2,11 @@ import React from 'react';
 import { useSimulator } from './hooks/useSimulator';
 import { SimInputPanel } from './components/SimInputPanel';
 import { SimResultsPanel } from './components/SimResultsPanel';
-import { CourtTimeline } from './components/CourtTimeline';
+import { AnimatedTimeline } from './components/AnimatedTimeline';
 import { colors, fonts, spacing } from '../shared/design-tokens';
 
 export const SimulatorPage: React.FC = () => {
-  const { inputs, results, running, maxReservationsPerDay, setInputs, run } = useSimulator();
+  const { inputs, results, running, maxReservationsPerDay, setInputs, resetInputs, run } = useSimulator();
 
   return (
     <div style={styles.wrapper}>
@@ -24,12 +24,13 @@ export const SimulatorPage: React.FC = () => {
           maxReservationsPerDay={maxReservationsPerDay}
           onInputsChange={setInputs}
           onRun={run}
+          onReset={resetInputs}
         />
         <SimResultsPanel results={results} running={running} />
       </div>
 
       {results && !running && (
-        <CourtTimeline
+        <AnimatedTimeline
           smart={results.sampleDay.smart}
           naive={results.sampleDay.naive}
           courtNames={results.sampleDay.courtNames}
@@ -74,6 +75,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: spacing.xl,
-    alignItems: 'start',
+    alignItems: 'stretch',
   },
 };

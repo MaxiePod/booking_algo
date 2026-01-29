@@ -12,6 +12,8 @@ import {
 } from 'recharts';
 import type { SimulatorResults } from '../types';
 import { colors, fonts, spacing, borderRadius } from '../../shared/design-tokens';
+import { InfoTooltip } from '../../shared/InfoTooltip';
+import { formatCurrency, formatPercent } from '../../calculator/utils/formatting';
 
 interface SimResultsPanelProps {
   results: SimulatorResults | null;
@@ -49,7 +51,20 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
 
   if (!results) return null;
 
-  const { smart, naive, deltaUtil, gapSaved, fragReduction } = results;
+  const {
+    smart,
+    naive,
+    deltaUtil,
+    gapSaved,
+    fragReduction,
+    revenueSmartPerDay,
+    revenueNaivePerDay,
+    savingsPerDay,
+    savingsPercent,
+    lockPremiumPerDay,
+  } = results;
+
+  const totalAdditionalPerDay = savingsPerDay + lockPremiumPerDay;
 
   const utilData = [
     { name: 'Utilization', Smart: +(smart.avgUtil * 100).toFixed(1), Naive: +(naive.avgUtil * 100).toFixed(1) },
@@ -64,22 +79,64 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
     <div style={styles.panel}>
       <h3 style={styles.heading}>Results</h3>
 
+      {/* Savings section */}
+      <div style={savingsStyles.card}>
+        <div style={savingsStyles.label}>TOTAL ADDITIONAL REVENUE PER DAY</div>
+        <div style={savingsStyles.amount}>{formatCurrency(totalAdditionalPerDay)}</div>
+
+        <div style={savingsStyles.breakdownRow}>
+          <span style={savingsStyles.breakdownLabel}>Algorithm optimization</span>
+          <span style={savingsStyles.breakdownValue}>+{formatCurrency(savingsPerDay)}</span>
+        </div>
+        <div style={savingsStyles.breakdownRow}>
+          <span style={savingsStyles.breakdownLabel}>Court lock premium</span>
+          <span style={savingsStyles.breakdownValue}>+{formatCurrency(lockPremiumPerDay)}</span>
+        </div>
+
+        <div style={savingsStyles.revenueRow}>
+          <div style={savingsStyles.revenueBox}>
+            <div style={savingsStyles.revenueBoxLabel}>Naive Revenue</div>
+            <div style={savingsStyles.revenueBoxValue}>{formatCurrency(revenueNaivePerDay)}</div>
+          </div>
+          <div style={savingsStyles.revenueBox}>
+            <div style={savingsStyles.revenueBoxLabel}>Smart Revenue</div>
+            <div style={{ ...savingsStyles.revenueBoxValue, color: colors.successDark }}>
+              {formatCurrency(revenueSmartPerDay)}
+            </div>
+          </div>
+        </div>
+
+        <div style={savingsStyles.projections}>
+          <div style={savingsStyles.projectionRow}>
+            <span style={savingsStyles.projectionLabel}>Monthly (×30)</span>
+            <span style={savingsStyles.projectionValue}>{formatCurrency(totalAdditionalPerDay * 30)}</span>
+          </div>
+          <div style={savingsStyles.projectionRow}>
+            <span style={savingsStyles.projectionLabel}>Annual (×365)</span>
+            <span style={savingsStyles.projectionValue}>{formatCurrency(totalAdditionalPerDay * 365)}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Summary cards */}
       <div style={styles.cardRow}>
         <MetricCard
           label="Utilization Gain"
           value={`+${(deltaUtil * 100).toFixed(1)}%`}
           positive={deltaUtil > 0}
+          tooltip="Difference in court utilization between smart and naive assignment. Higher means the smart algorithm fills more available court time."
         />
         <MetricCard
           label="Gap Time Saved"
           value={`${Math.round(gapSaved)} min`}
           positive={gapSaved > 0}
+          tooltip="Total unused minutes between bookings that the smart algorithm eliminates compared to naive placement. Less gap time means tighter scheduling."
         />
         <MetricCard
           label="Fragmentation"
           value={`−${(fragReduction * 100).toFixed(1)}%`}
           positive={fragReduction > 0}
+          tooltip="Reduction in schedule fragmentation. Fragmentation measures how scattered bookings are across courts. Lower fragmentation means more consolidated schedules."
         />
       </div>
 
@@ -101,6 +158,7 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
               naive={`${(naive.avgUtil * 100).toFixed(1)}%`}
               delta={`+${(deltaUtil * 100).toFixed(1)}%`}
               good={deltaUtil > 0}
+              tooltip="Percentage of total available court-minutes that are filled with bookings. Higher is better."
             />
             <StatRow
               label="Avg Gap Minutes"
@@ -108,6 +166,7 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
               naive={`${Math.round(naive.avgGapMinutes)}`}
               delta={`−${Math.round(gapSaved)}`}
               good={gapSaved > 0}
+              tooltip="Total minutes of empty gaps between bookings across all courts per day. Lower means a tighter, more efficient schedule."
             />
             <StatRow
               label="Avg Fragmentation"
@@ -115,6 +174,7 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
               naive={`${(naive.avgFragmentation * 100).toFixed(1)}%`}
               delta={`−${(fragReduction * 100).toFixed(1)}%`}
               good={fragReduction > 0}
+              tooltip="Score measuring how scattered bookings are across courts. Lower fragmentation means bookings are consolidated, leaving full courts open."
             />
             <StatRow
               label="Avg Unassigned"
@@ -122,6 +182,7 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
               naive={naive.avgUnassigned.toFixed(1)}
               delta={`${(naive.avgUnassigned - smart.avgUnassigned).toFixed(1)}`}
               good={naive.avgUnassigned >= smart.avgUnassigned}
+              tooltip="Average number of reservations that could not be placed on any court due to conflicts. Lower is better."
             />
           </tbody>
         </table>
@@ -216,14 +277,18 @@ const MetricCard: React.FC<{
   label: string;
   value: string;
   positive: boolean;
-}> = ({ label, value, positive }) => (
+  tooltip: string;
+}> = ({ label, value, positive, tooltip }) => (
   <div
     style={{
       ...styles.metricCard,
       backgroundColor: positive ? colors.successLight : colors.backgroundAlt,
     }}
   >
-    <div style={styles.metricLabel}>{label}</div>
+    <div style={styles.metricLabel}>
+      {label}
+      <InfoTooltip text={tooltip} />
+    </div>
     <div
       style={{
         ...styles.metricValue,
@@ -241,9 +306,15 @@ const StatRow: React.FC<{
   naive: string;
   delta: string;
   good: boolean;
-}> = ({ label, smart, naive, delta, good }) => (
+  tooltip: string;
+}> = ({ label, smart, naive, delta, good, tooltip }) => (
   <tr>
-    <td style={styles.td}>{label}</td>
+    <td style={styles.td}>
+      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+        {label}
+        <InfoTooltip text={tooltip} />
+      </span>
+    </td>
     <td style={{ ...styles.td, fontWeight: '600', color: colors.primary }}>
       {smart}
     </td>
@@ -319,6 +390,9 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${colors.border}`,
   },
   metricLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     fontSize: '11px',
     fontWeight: fonts.weightSemibold,
     color: colors.textSecondary,
@@ -363,6 +437,89 @@ const styles: Record<string, React.CSSProperties> = {
     color: colors.textSecondary,
     fontWeight: fonts.weightMedium,
     marginBottom: spacing.sm,
+  },
+};
+
+const savingsStyles: Record<string, React.CSSProperties> = {
+  card: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    border: `1px solid ${colors.success}`,
+    backgroundColor: colors.successLight,
+    marginBottom: spacing.lg,
+    textAlign: 'center' as const,
+  },
+  label: {
+    fontSize: '11px',
+    fontWeight: fonts.weightSemibold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+    marginBottom: spacing.sm,
+  },
+  amount: {
+    fontSize: fonts.sizeXl,
+    fontWeight: fonts.weightBold,
+    color: colors.successDark,
+    marginBottom: spacing.sm,
+  },
+  breakdownRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '3px 0',
+  },
+  breakdownLabel: {
+    fontSize: fonts.sizeSmall,
+    color: colors.textSecondary,
+  },
+  breakdownValue: {
+    fontSize: fonts.sizeSmall,
+    fontWeight: fonts.weightSemibold,
+    color: colors.successDark,
+  },
+  revenueRow: {
+    display: 'flex',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    marginBottom: spacing.md,
+  },
+  revenueBox: {
+    flex: 1,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.background,
+    border: `1px solid ${colors.border}`,
+  },
+  revenueBoxLabel: {
+    fontSize: '11px',
+    fontWeight: fonts.weightMedium,
+    color: colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+    marginBottom: '4px',
+  },
+  revenueBoxValue: {
+    fontSize: fonts.sizeMd,
+    fontWeight: fonts.weightBold,
+    color: colors.text,
+  },
+  projections: {
+    borderTop: `1px solid ${colors.border}`,
+    paddingTop: spacing.sm,
+  },
+  projectionRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: `4px 0`,
+  },
+  projectionLabel: {
+    fontSize: fonts.sizeSmall,
+    color: colors.textSecondary,
+  },
+  projectionValue: {
+    fontSize: fonts.sizeSmall,
+    fontWeight: fonts.weightSemibold,
+    color: colors.successDark,
   },
 };
 

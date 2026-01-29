@@ -14,6 +14,7 @@ export interface UseSimulatorReturn {
   running: boolean;
   maxReservationsPerDay: number;
   setInputs: (partial: Partial<SimulatorInputs>) => void;
+  resetInputs: () => void;
   run: () => void;
 }
 
@@ -38,7 +39,7 @@ export function useSimulator(): UseSimulatorReturn {
       const mChanged = next.minReservationMin !== prevM.current;
       const bChanged = next.slotBlockMin !== prevB.current;
       if (mChanged || bChanged) {
-        next.durationBinPcts = [25, 25, 25, 25] as DurationBinPcts;
+        next.durationBinPcts = [...DEFAULT_SIM_INPUTS.durationBinPcts] as DurationBinPcts;
         prevM.current = next.minReservationMin;
         prevB.current = next.slotBlockMin;
       }
@@ -53,6 +54,12 @@ export function useSimulator(): UseSimulatorReturn {
     });
   };
 
+  const resetInputs = useCallback(() => {
+    setInputsState(DEFAULT_SIM_INPUTS);
+    prevM.current = DEFAULT_SIM_INPUTS.minReservationMin;
+    prevB.current = DEFAULT_SIM_INPUTS.slotBlockMin;
+  }, []);
+
   const run = useCallback(() => {
     setRunning(true);
     // Use setTimeout to let the UI update before blocking on computation
@@ -63,5 +70,5 @@ export function useSimulator(): UseSimulatorReturn {
     }, 50);
   }, [inputs]);
 
-  return { inputs, results, running, maxReservationsPerDay, setInputs, run };
+  return { inputs, results, running, maxReservationsPerDay, setInputs, resetInputs, run };
 }

@@ -20,6 +20,7 @@ export const SavingsCalculator: React.FC<SavingsCalculatorProps> = ({
     setPricePerHour,
     setLockedPercent,
     setPeriod,
+    setInputs,
   } = useCalculator(initialInputs);
 
   return (
@@ -38,6 +39,7 @@ export const SavingsCalculator: React.FC<SavingsCalculatorProps> = ({
           onUtilizationChange={setCurrentUtilizationPercent}
           onPriceChange={setPricePerHour}
           onLockedChange={setLockedPercent}
+          onLockPremiumChange={(v) => setInputs({ lockPremiumPerHour: v })}
         />
         <ResultsPanel
           results={results}

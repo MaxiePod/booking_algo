@@ -281,7 +281,7 @@ const LegendItem: React.FC<{ color: string; label: string }> = ({
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
-function buildCourtMap(
+export function buildCourtMap(
   assignments: AssignedReservation[]
 ): Map<string, AssignedReservation[]> {
   const map = new Map<string, AssignedReservation[]>();
@@ -296,7 +296,7 @@ function buildCourtMap(
   return map;
 }
 
-function formatHour(minutes: number): string {
+export function formatHour(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   if (m === 0) return `${h}`;
@@ -305,9 +305,9 @@ function formatHour(minutes: number): string {
 
 // ─── Color constants ───────────────────────────────────────────────────
 
-const COLORS = {
-  locked: '#6366f1',        // indigo — customer-picked
-  flexible: colors.primary, // PodPlay blue — auto-assigned
+export const COLORS = {
+  locked: '#818cf8',        // lighter indigo — customer-picked
+  flexible: '#2563eb',      // deeper blue — auto-assigned (distinct from locked)
   recovered: '#22c55e',     // green — bookable in smart, gap in naive
   recoveredBorder: '#4ade80',
   gap: '#1a1a1a',           // dark surface — unused

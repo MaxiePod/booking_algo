@@ -19,6 +19,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
 }) => {
   const periodLabel =
     period === 'daily' ? 'day' : period === 'monthly' ? 'month' : 'year';
+  const totalAdditional = results.savings + results.lockPremiumRevenue;
 
   return (
     <div style={styles.panel}>
@@ -29,12 +30,17 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
 
       {/* Savings callout */}
       <div style={styles.savingsCard}>
-        <div style={styles.savingsLabel}>Additional revenue per {periodLabel}</div>
+        <div style={styles.savingsLabel}>Total additional revenue per {periodLabel}</div>
         <div style={styles.savingsAmount}>
-          {formatCurrency(results.savings)}
+          {formatCurrency(totalAdditional)}
         </div>
-        <div style={styles.savingsPercent}>
-          +{formatPercent(results.savingsPercent)} more revenue
+        <div style={styles.breakdownRow}>
+          <span style={styles.breakdownLabel}>Algorithm optimization</span>
+          <span style={styles.breakdownValue}>+{formatCurrency(results.savings)}</span>
+        </div>
+        <div style={styles.breakdownRow}>
+          <span style={styles.breakdownLabel}>Court lock premium</span>
+          <span style={styles.breakdownValue}>+{formatCurrency(results.lockPremiumRevenue)}</span>
         </div>
       </div>
 
@@ -133,6 +139,21 @@ const styles: Record<string, React.CSSProperties> = {
     color: colors.success,
     fontWeight: fonts.weightMedium,
     marginTop: spacing.xs,
+  },
+  breakdownRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '3px 0',
+    marginTop: '2px',
+  },
+  breakdownLabel: {
+    fontSize: fonts.sizeSmall,
+    color: colors.textSecondary,
+  },
+  breakdownValue: {
+    fontSize: fonts.sizeSmall,
+    fontWeight: fonts.weightSemibold,
+    color: colors.successDark,
   },
   utilRow: {
     display: 'flex',

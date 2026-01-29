@@ -7,7 +7,10 @@ interface NumberInputProps {
   min: number;
   max: number;
   step?: number;
+  compact?: boolean;
   onChange: (value: number) => void;
+  /** Optional React node rendered after the label text (e.g. InfoTooltip) */
+  labelSuffix?: React.ReactNode;
 }
 
 export const NumberInput: React.FC<NumberInputProps> = ({
@@ -16,18 +19,26 @@ export const NumberInput: React.FC<NumberInputProps> = ({
   min,
   max,
   step = 1,
+  compact = false,
   onChange,
+  labelSuffix,
 }) => {
   const handleChange = (newValue: number) => {
     onChange(Math.min(max, Math.max(min, newValue)));
   };
 
+  const btnSize = compact ? '32px' : '40px';
+  const inputW = compact ? '48px' : '80px';
+
   return (
     <div style={styles.container}>
-      <label style={styles.label}>{label}</label>
+      <label style={styles.label}>
+        {label}
+        {labelSuffix}
+      </label>
       <div style={styles.inputGroup}>
         <button
-          style={styles.button}
+          style={{ ...styles.button, width: btnSize, height: btnSize }}
           onClick={() => handleChange(value - step)}
           disabled={value <= min}
           aria-label={`Decrease ${label}`}
@@ -41,10 +52,10 @@ export const NumberInput: React.FC<NumberInputProps> = ({
           max={max}
           step={step}
           onChange={(e) => handleChange(Number(e.target.value))}
-          style={styles.input}
+          style={{ ...styles.input, width: inputW, height: btnSize }}
         />
         <button
-          style={styles.button}
+          style={{ ...styles.button, width: btnSize, height: btnSize }}
           onClick={() => handleChange(value + step)}
           disabled={value >= max}
           aria-label={`Increase ${label}`}
@@ -61,7 +72,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: spacing.lg,
   },
   label: {
-    display: 'block',
+    display: 'flex',
+    alignItems: 'center',
     fontSize: fonts.sizeBase,
     fontWeight: fonts.weightMedium,
     color: colors.textSecondary,
@@ -76,8 +88,6 @@ const styles: Record<string, React.CSSProperties> = {
     border: `1px solid ${colors.border}`,
   },
   button: {
-    width: '40px',
-    height: '40px',
     border: 'none',
     backgroundColor: colors.backgroundAlt,
     color: colors.text,
@@ -91,8 +101,6 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'background-color 0.15s',
   },
   input: {
-    width: '80px',
-    height: '40px',
     border: 'none',
     borderLeft: `1px solid ${colors.border}`,
     borderRight: `1px solid ${colors.border}`,

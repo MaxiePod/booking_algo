@@ -149,6 +149,7 @@ export function calculateSavings(input: {
   pricePerHour: number;
   currentUtilization: number;
   lockedFraction: number;
+  lockPremiumPerHour?: number;
   period: TimePeriod;
   model?: 'powerLaw' | 'hill';
 }): {
@@ -156,6 +157,7 @@ export function calculateSavings(input: {
   revenueTraditional: number;
   savings: number;
   savingsPercent: number;
+  lockPremiumRevenue: number;
   effectiveUtilPodPlay: number;
   effectiveUtilTraditional: number;
 } {
@@ -195,11 +197,21 @@ export function calculateSavings(input: {
   const savingsPercent =
     revenueTraditional > 0 ? (savings / revenueTraditional) * 100 : 0;
 
+  // Lock premium: charged on locked court-hours booked with PodPlay
+  const lockedBookedHours =
+    input.numCourts *
+    input.operatingHoursPerDay *
+    effectiveUtilPodPlay *
+    input.lockedFraction;
+  const lockPremiumRevenue =
+    lockedBookedHours * (input.lockPremiumPerHour ?? 0) * multiplier;
+
   return {
     revenuePodPlay,
     revenueTraditional,
     savings,
     savingsPercent,
+    lockPremiumRevenue,
     effectiveUtilPodPlay,
     effectiveUtilTraditional,
   };

@@ -30,6 +30,7 @@ export function useCalculator(
       pricePerHour: inputs.pricePerHour,
       currentUtilization: inputs.currentUtilizationPercent / 100,
       lockedFraction: inputs.lockedPercent / 100,
+      lockPremiumPerHour: inputs.lockPremiumPerHour,
       period: inputs.period,
     });
 
@@ -38,6 +39,7 @@ export function useCalculator(
       revenueTraditional: result.revenueTraditional,
       savings: result.savings,
       savingsPercent: result.savingsPercent,
+      lockPremiumRevenue: result.lockPremiumRevenue,
       effectiveUtilPodPlay: result.effectiveUtilPodPlay,
       effectiveUtilTraditional: result.effectiveUtilTraditional,
     };

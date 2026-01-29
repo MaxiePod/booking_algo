@@ -8,6 +8,7 @@ export interface CalculatorInputs {
   pricePerHour: number;
   /** % of reservations that remain locked (customer-picked) even with PodPlay */
   lockedPercent: number;
+  lockPremiumPerHour: number;
   period: TimePeriod;
 }
 
@@ -17,6 +18,7 @@ export interface CalculatorResults {
   revenueTraditional: number;
   savings: number;
   savingsPercent: number;
+  lockPremiumRevenue: number;
   /** Effective utilization with PodPlay (higher) */
   effectiveUtilPodPlay: number;
   /** Effective utilization without PodPlay / traditional (= current input) */
@@ -28,6 +30,7 @@ export const DEFAULT_INPUTS: CalculatorInputs = {
   numCourts: 8,
   currentUtilizationPercent: 75,
   pricePerHour: 80,
-  lockedPercent: 60,
+  lockedPercent: 11,
+  lockPremiumPerHour: 10,
   period: 'monthly',
 };

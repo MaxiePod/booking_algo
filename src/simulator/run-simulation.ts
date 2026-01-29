@@ -21,6 +21,20 @@ function createRng(seed: number): () => number {
 }
 
 /**
+ * Sample from a normal distribution using Box-Muller transform.
+ * Returns round(normal(mean, cv * mean)), clamped to [1, max].
+ */
+function sampleNormal(mean: number, cv: number, max: number, rng: () => number): number {
+  const stddev = cv * mean;
+  const u1 = rng();
+  const u2 = rng();
+  // Box-Muller: convert two uniform samples to a standard normal
+  const z = Math.sqrt(-2 * Math.log(u1 || 1e-10)) * Math.cos(2 * Math.PI * u2);
+  const value = Math.round(mean + stddev * z);
+  return Math.max(1, Math.min(max, value));
+}
+
+/**
  * Pick a duration using cumulative-probability bin selection.
  * Bins 0-2 return exact durations: M, M+B, M+2B.
  * Bin 3 randomly picks from M+2B, M+3B, ... up to min(operatingMinutes, 240).
@@ -134,10 +148,21 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
   const smartResults: AssignmentResult[] = [];
   const naiveResults: AssignmentResult[] = [];
 
+  const cv = inputs.varianceCV / 100; // convert percentage to fraction
+  const maxPossible = Math.floor(
+    ((schedule.closeTime - schedule.openTime) / inputs.minReservationMin) * inputs.numCourts
+  );
+
   for (let i = 0; i < inputs.iterations; i++) {
     const rng = createRng(baseSeed + i * 1000);
+
+    const count =
+      cv > 0
+        ? sampleNormal(inputs.reservationsPerDay, cv, maxPossible, rng)
+        : inputs.reservationsPerDay;
+
     const reservations = generateReservations(
-      inputs.reservationsPerDay,
+      count,
       lockedFraction,
       courts,
       schedule,
@@ -178,12 +203,36 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
     }
   }
 
+  // Revenue computation
+  const totalCourtMinutes = inputs.numCourts * (schedule.closeTime - schedule.openTime);
+  const pricePerMinute = inputs.pricePerHour / 60;
+  const revenueSmartPerDay = totalCourtMinutes * smart.avgUtil * pricePerMinute;
+  const revenueNaivePerDay = totalCourtMinutes * naive.avgUtil * pricePerMinute;
+  const savingsPerDay = revenueSmartPerDay - revenueNaivePerDay;
+  const savingsPercent =
+    revenueNaivePerDay > 0 ? (savingsPerDay / revenueNaivePerDay) * 100 : 0;
+
+  // Lock premium: average locked court-hours per day × premium rate
+  const avgLockedMinutes = avg(
+    smartResults.map((r) =>
+      r.assignments
+        .filter((a) => a.mode === 'locked')
+        .reduce((sum, a) => sum + (a.slot.end - a.slot.start), 0)
+    )
+  );
+  const lockPremiumPerDay = (avgLockedMinutes / 60) * inputs.lockPremiumPerHour;
+
   return {
     smart,
     naive,
     deltaUtil: smart.avgUtil - naive.avgUtil,
     gapSaved: naive.avgGapMinutes - smart.avgGapMinutes,
     fragReduction: naive.avgFragmentation - smart.avgFragmentation,
+    revenueSmartPerDay,
+    revenueNaivePerDay,
+    savingsPerDay,
+    savingsPercent,
+    lockPremiumPerDay,
     sampleDay: {
       smart: smartResults[bestSampleIdx],
       naive: naiveResults[bestSampleIdx],

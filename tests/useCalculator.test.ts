@@ -9,7 +9,7 @@ describe('useCalculator', () => {
     expect(result.current.inputs.numCourts).toBe(8);
     expect(result.current.inputs.currentUtilizationPercent).toBe(75);
     expect(result.current.inputs.pricePerHour).toBe(80);
-    expect(result.current.inputs.lockedPercent).toBe(60);
+    expect(result.current.inputs.lockedPercent).toBe(11);
     expect(result.current.inputs.period).toBe('monthly');
 
     expect(result.current.results.revenuePodPlay).toBeGreaterThan(0);
@@ -33,7 +33,7 @@ describe('useCalculator', () => {
     const initialSavings = result.current.results.savings;
 
     act(() => {
-      result.current.setLockedPercent(30);
+      result.current.setLockedPercent(5);
     });
 
     // Lower locked % = more algo = more savings

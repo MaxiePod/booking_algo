@@ -8,7 +8,13 @@ interface SliderInputProps {
   max: number;
   step?: number;
   unit?: string;
+  /** Rendered before the numeric value (e.g. "$") */
+  prefix?: string;
   onChange: (value: number) => void;
+  /** Optional React node rendered after the label text (e.g. InfoTooltip) */
+  labelSuffix?: React.ReactNode;
+  /** If provided, renders a small triangle tick mark on the slider track at this value */
+  defaultValue?: number;
 }
 
 export const SliderInput: React.FC<SliderInputProps> = ({
@@ -18,39 +24,63 @@ export const SliderInput: React.FC<SliderInputProps> = ({
   max,
   step = 1,
   unit = '',
+  prefix = '',
   onChange,
+  labelSuffix,
+  defaultValue,
 }) => {
   const percent = ((value - min) / (max - min)) * 100;
+  const defaultPercent = defaultValue != null
+    ? ((defaultValue - min) / (max - min)) * 100
+    : null;
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <label style={styles.label}>{label}</label>
+        <label style={styles.label}>
+          {label}
+          {labelSuffix}
+        </label>
         <span style={styles.value}>
-          {value}
-          {unit}
+          {prefix}{value}{unit}
         </span>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        style={{
-          ...styles.slider,
-          background: `linear-gradient(to right, ${colors.primary} 0%, ${colors.primary} ${percent}%, ${colors.border} ${percent}%, ${colors.border} 100%)`,
-        }}
-      />
+      <div style={styles.sliderTrack}>
+        {defaultPercent != null && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 2,
+              left: `calc(8px + (100% - 16px) * ${defaultPercent / 100})`,
+              width: 0,
+              height: 0,
+              borderLeft: '4px solid transparent',
+              borderRight: '4px solid transparent',
+              borderTop: `6px solid ${colors.textMuted}`,
+              pointerEvents: 'none',
+            }}
+            title={`Default: ${prefix}${defaultValue}${unit}`}
+          />
+        )}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          style={{
+            ...styles.slider,
+            background: `linear-gradient(to right, ${colors.primary} 0%, ${colors.primary} ${percent}%, ${colors.border} ${percent}%, ${colors.border} 100%)`,
+          }}
+        />
+      </div>
       <div style={styles.rangeLabels}>
         <span style={styles.rangeLabel}>
-          {min}
-          {unit}
+          {prefix}{min}{unit}
         </span>
         <span style={styles.rangeLabel}>
-          {max}
-          {unit}
+          {prefix}{max}{unit}
         </span>
       </div>
     </div>
@@ -68,6 +98,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: spacing.sm,
   },
   label: {
+    display: 'flex',
+    alignItems: 'center',
     fontSize: fonts.sizeBase,
     fontWeight: fonts.weightMedium,
     color: colors.textSecondary,
@@ -78,6 +110,10 @@ const styles: Record<string, React.CSSProperties> = {
     color: colors.text,
     minWidth: '48px',
     textAlign: 'right' as const,
+  },
+  sliderTrack: {
+    position: 'relative' as const,
+    paddingTop: 10,
   },
   slider: {
     width: '100%',
