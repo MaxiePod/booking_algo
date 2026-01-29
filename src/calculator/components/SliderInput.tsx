@@ -15,6 +15,29 @@ interface SliderInputProps {
   labelSuffix?: React.ReactNode;
   /** If provided, renders a small triangle tick mark on the slider track at this value */
   defaultValue?: number;
+  /** When true, the default-value triangle blinks to draw attention */
+  blinking?: boolean;
+}
+
+/** Amber color for default-value triangle marks (matches variance tooltip bell curve) */
+const DEFAULT_MARK_COLOR = '#f59e0b';
+
+/** Inject blink keyframes once into <head> */
+const BLINK_STYLE_ID = 'podplay-default-blink-style';
+function ensureBlinkStyle() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(BLINK_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = BLINK_STYLE_ID;
+  style.textContent = `
+@keyframes podplay-default-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+.podplay-default-blink {
+  animation: podplay-default-blink 0.33s ease-in-out 3;
+}`;
+  document.head.appendChild(style);
 }
 
 export const SliderInput: React.FC<SliderInputProps> = ({
@@ -28,7 +51,10 @@ export const SliderInput: React.FC<SliderInputProps> = ({
   onChange,
   labelSuffix,
   defaultValue,
+  blinking,
 }) => {
+  React.useEffect(() => { ensureBlinkStyle(); }, []);
+
   const percent = ((value - min) / (max - min)) * 100;
   const defaultPercent = defaultValue != null
     ? ((defaultValue - min) / (max - min)) * 100
@@ -48,6 +74,7 @@ export const SliderInput: React.FC<SliderInputProps> = ({
       <div style={styles.sliderTrack}>
         {defaultPercent != null && (
           <div
+            className={`podplay-default-mark${blinking ? ' podplay-default-blink' : ''}`}
             style={{
               position: 'absolute',
               top: 2,
@@ -56,7 +83,7 @@ export const SliderInput: React.FC<SliderInputProps> = ({
               height: 0,
               borderLeft: '4px solid transparent',
               borderRight: '4px solid transparent',
-              borderTop: `6px solid ${colors.textMuted}`,
+              borderTop: `6px solid ${DEFAULT_MARK_COLOR}`,
               pointerEvents: 'none',
             }}
             title={`Default: ${prefix}${defaultValue}${unit}`}

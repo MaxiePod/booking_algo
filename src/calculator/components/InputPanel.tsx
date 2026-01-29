@@ -27,7 +27,20 @@ export const InputPanel: React.FC<InputPanelProps> = ({
 }) => {
   return (
     <div style={styles.panel}>
-      <h3 style={styles.heading}>Your Facility</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl }}>
+        <h3 style={{ ...styles.heading, marginBottom: 0 }}>Your Facility</h3>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: colors.textMuted, fontSize: fonts.sizeSmall }}>
+          <span style={{
+            display: 'inline-block',
+            width: 0,
+            height: 0,
+            borderLeft: '4px solid transparent',
+            borderRight: '4px solid transparent',
+            borderTop: '6px solid #f59e0b',
+          }} />
+          Default
+        </span>
+      </div>
 
       <NumberInput
         label="Number of Courts"

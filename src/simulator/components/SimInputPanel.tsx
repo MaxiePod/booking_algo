@@ -62,12 +62,16 @@ const VarianceTooltip: React.FC<{ mean: number }> = ({ mean }) => {
   );
 };
 
+/** Amber color for default-value triangle marks */
+const DEFAULT_MARK_COLOR = '#f59e0b';
+
 const DurationBinSliders: React.FC<{
   bins: ReturnType<typeof computeDurationBins>;
   pcts: DurationBinPcts;
   defaultPcts: DurationBinPcts;
   onChange: (pcts: DurationBinPcts) => void;
-}> = ({ bins, pcts, defaultPcts, onChange }) => {
+  blinking?: boolean;
+}> = ({ bins, pcts, defaultPcts, onChange, blinking }) => {
   const handleSliderChange = (index: number, raw: number) => {
     const value = Math.round(raw); // 1% increments
     const next = [...pcts] as [number, number, number, number];
@@ -114,6 +118,7 @@ const DurationBinSliders: React.FC<{
             <span style={styles.binLabel}>{bin.label}</span>
             <div style={styles.binSliderTrack}>
               <div
+                className={`podplay-default-mark${blinking ? ' podplay-default-blink' : ''}`}
                 style={{
                   position: 'absolute',
                   top: 2,
@@ -122,7 +127,7 @@ const DurationBinSliders: React.FC<{
                   height: 0,
                   borderLeft: '4px solid transparent',
                   borderRight: '4px solid transparent',
-                  borderTop: `6px solid ${colors.textMuted}`,
+                  borderTop: `6px solid ${DEFAULT_MARK_COLOR}`,
                   pointerEvents: 'none',
                 }}
                 title={`Default: ${defPct}%`}
@@ -156,6 +161,14 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
   onRun,
   onReset,
 }) => {
+  const [blinking, setBlinking] = React.useState(false);
+
+  const handleReset = () => {
+    onReset();
+    setBlinking(true);
+    setTimeout(() => setBlinking(false), 1100);
+  };
+
   const bins = computeDurationBins(inputs.minReservationMin, inputs.slotBlockMin);
 
   const operatingMinutes = (inputs.closeHour - inputs.openHour) * 60;
@@ -171,7 +184,20 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
     <div style={styles.panel}>
       <div style={styles.headingRow}>
         <h3 style={styles.heading}>Simulation Parameters</h3>
-        <button style={styles.resetButton} onClick={onReset}>Reset to Defaults</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: colors.textMuted, fontSize: fonts.sizeSmall }}>
+            <span style={{
+              display: 'inline-block',
+              width: 0,
+              height: 0,
+              borderLeft: '4px solid transparent',
+              borderRight: '4px solid transparent',
+              borderTop: '6px solid #f59e0b',
+            }} />
+            Default
+          </span>
+          <button style={styles.resetButton} onClick={handleReset}>Reset to Defaults</button>
+        </div>
       </div>
 
       {/* Courts + Open Hour + Close Hour on one row */}
@@ -219,6 +245,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         onChange={(v) => onInputsChange({ reservationsPerDay: v })}
         labelSuffix={<InfoTooltip text="Number of reservation slots generated per simulated day. Each slot represents one booking request placed into the system. The maximum is determined by operating hours, min reservation length, and court count." />}
         defaultValue={DEFAULT_SIM_INPUTS.reservationsPerDay}
+        blinking={blinking}
       />
       <div style={styles.preAlgoUtil}>
         ≈ {Math.round(preAlgoUtil * 100)}% estimated pre-algorithm utilization
@@ -233,6 +260,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         onChange={(v) => onInputsChange({ lockedPercent: v })}
         labelSuffix={<InfoTooltip text="Percentage of reservations that are locked to a specific court (e.g. a member's preferred court). Locked reservations cannot be moved by the algorithm." />}
         defaultValue={DEFAULT_SIM_INPUTS.lockedPercent}
+        blinking={blinking}
       />
 
       <SliderInput
@@ -245,6 +273,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         onChange={(v) => onInputsChange({ lockPremiumPerHour: v })}
         labelSuffix={<InfoTooltip text="Additional surcharge per court-hour for customers who lock a specific court. This premium is collected on top of the base court rental price." />}
         defaultValue={DEFAULT_SIM_INPUTS.lockPremiumPerHour}
+        blinking={blinking}
       />
 
       {/* Min Reservation Length + Slot Block Size side by side */}
@@ -300,6 +329,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         pcts={inputs.durationBinPcts}
         defaultPcts={DEFAULT_SIM_INPUTS.durationBinPcts}
         onChange={(pcts) => onInputsChange({ durationBinPcts: pcts })}
+        blinking={blinking}
       />
 
       <SliderInput
@@ -311,6 +341,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         onChange={(v) => onInputsChange({ pricePerHour: v })}
         labelSuffix={<InfoTooltip text="Court rental price per hour. Used to estimate revenue differences between smart and naive assignment." />}
         defaultValue={DEFAULT_SIM_INPUTS.pricePerHour}
+        blinking={blinking}
       />
 
       <SliderInput
@@ -322,6 +353,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         onChange={(v) => onInputsChange({ varianceCV: v })}
         labelSuffix={<InfoTooltip text={<VarianceTooltip mean={inputs.reservationsPerDay} />} />}
         defaultValue={DEFAULT_SIM_INPUTS.varianceCV}
+        blinking={blinking}
       />
 
       <SliderInput
@@ -333,6 +365,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         onChange={(v) => onInputsChange({ iterations: v })}
         labelSuffix={<InfoTooltip text="Number of Monte Carlo simulation runs. More iterations give more stable averages but take longer to compute." />}
         defaultValue={DEFAULT_SIM_INPUTS.iterations}
+        blinking={blinking}
       />
 
       <button
