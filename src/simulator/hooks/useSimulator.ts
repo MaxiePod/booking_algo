@@ -1,12 +1,18 @@
-import { useState, useCallback } from 'react';
-import type { SimulatorInputs, SimulatorResults } from '../types';
+import { useState, useCallback, useMemo, useRef } from 'react';
+import type { SimulatorInputs, SimulatorResults, DurationBinPcts } from '../types';
 import { DEFAULT_SIM_INPUTS } from '../types';
 import { runComparison } from '../run-simulation';
+
+function computeMaxReservations(inputs: SimulatorInputs): number {
+  const operatingMinutes = (inputs.closeHour - inputs.openHour) * 60;
+  return Math.floor(operatingMinutes / inputs.minReservationMin) * inputs.numCourts;
+}
 
 export interface UseSimulatorReturn {
   inputs: SimulatorInputs;
   results: SimulatorResults | null;
   running: boolean;
+  maxReservationsPerDay: number;
   setInputs: (partial: Partial<SimulatorInputs>) => void;
   run: () => void;
 }
@@ -16,8 +22,35 @@ export function useSimulator(): UseSimulatorReturn {
   const [results, setResults] = useState<SimulatorResults | null>(null);
   const [running, setRunning] = useState(false);
 
+  const prevM = useRef(inputs.minReservationMin);
+  const prevB = useRef(inputs.slotBlockMin);
+
+  const maxReservationsPerDay = useMemo(
+    () => computeMaxReservations(inputs),
+    [inputs.numCourts, inputs.openHour, inputs.closeHour, inputs.minReservationMin]
+  );
+
   const setInputs = (partial: Partial<SimulatorInputs>) => {
-    setInputsState((prev) => ({ ...prev, ...partial }));
+    setInputsState((prev) => {
+      const next = { ...prev, ...partial };
+
+      // Reset durationBinPcts when M or B changes
+      const mChanged = next.minReservationMin !== prevM.current;
+      const bChanged = next.slotBlockMin !== prevB.current;
+      if (mChanged || bChanged) {
+        next.durationBinPcts = [25, 25, 25, 25] as DurationBinPcts;
+        prevM.current = next.minReservationMin;
+        prevB.current = next.slotBlockMin;
+      }
+
+      // Clamp reservationsPerDay to max
+      const max = computeMaxReservations(next);
+      if (next.reservationsPerDay > max) {
+        next.reservationsPerDay = max;
+      }
+
+      return next;
+    });
   };
 
   const run = useCallback(() => {
@@ -30,5 +63,5 @@ export function useSimulator(): UseSimulatorReturn {
     }, 50);
   }, [inputs]);
 
-  return { inputs, results, running, setInputs, run };
+  return { inputs, results, running, maxReservationsPerDay, setInputs, run };
 }

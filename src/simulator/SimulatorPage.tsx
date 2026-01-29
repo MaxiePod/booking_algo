@@ -6,7 +6,7 @@ import { CourtTimeline } from './components/CourtTimeline';
 import { colors, fonts, spacing } from '../shared/design-tokens';
 
 export const SimulatorPage: React.FC = () => {
-  const { inputs, results, running, setInputs, run } = useSimulator();
+  const { inputs, results, running, maxReservationsPerDay, setInputs, run } = useSimulator();
 
   return (
     <div style={styles.wrapper}>
@@ -21,6 +21,7 @@ export const SimulatorPage: React.FC = () => {
         <SimInputPanel
           inputs={inputs}
           running={running}
+          maxReservationsPerDay={maxReservationsPerDay}
           onInputsChange={setInputs}
           onRun={run}
         />

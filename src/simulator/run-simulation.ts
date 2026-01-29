@@ -8,7 +8,7 @@ import type {
 import { assignCourts } from '../algorithm/court-assigner';
 import { naiveAssignCourts } from '../algorithm/naive-assigner';
 import { slotDuration } from '../algorithm/utils';
-import type { SimulatorInputs, SimulatorResults, RunStats } from './types';
+import type { SimulatorInputs, SimulatorResults, RunStats, DurationBinPcts } from './types';
 
 function createRng(seed: number): () => number {
   let s = seed | 0;
@@ -20,20 +20,65 @@ function createRng(seed: number): () => number {
   };
 }
 
+/**
+ * Pick a duration using cumulative-probability bin selection.
+ * Bins 0-2 return exact durations: M, M+B, M+2B.
+ * Bin 3 randomly picks from M+2B, M+3B, ... up to min(operatingMinutes, 240).
+ */
+function pickWeightedDuration(
+  M: number,
+  B: number,
+  pcts: DurationBinPcts,
+  operatingMinutes: number,
+  rng: () => number
+): number {
+  const maxDuration = Math.min(operatingMinutes, 240);
+  const r = rng() * 100;
+  let cumulative = 0;
+
+  for (let i = 0; i < 4; i++) {
+    cumulative += pcts[i];
+    if (r < cumulative) {
+      if (i === 0) return M;
+      if (i === 1) return Math.min(M + B, maxDuration);
+      if (i === 2) return Math.min(M + 2 * B, maxDuration);
+      // Bin 3: random from M+2B up to maxDuration in steps of B
+      const minBin3 = M + 2 * B;
+      if (minBin3 >= maxDuration) return maxDuration;
+      const steps: number[] = [];
+      for (let d = minBin3; d <= maxDuration; d += B) {
+        steps.push(d);
+      }
+      if (steps.length === 0) return minBin3;
+      return steps[Math.floor(rng() * steps.length)];
+    }
+  }
+
+  // Fallback (shouldn't happen with valid pcts summing to 100)
+  return M;
+}
+
 function generateReservations(
   count: number,
   lockedFraction: number,
   courts: Court[],
   schedule: OperatingSchedule,
-  durations: number[],
+  minReservationMin: number,
   slotBlockMin: number,
+  durationBinPcts: DurationBinPcts,
   rng: () => number
 ): Reservation[] {
   const operatingMinutes = schedule.closeTime - schedule.openTime;
   const reservations: Reservation[] = [];
 
   for (let j = 0; j < count; j++) {
-    const duration = durations[Math.floor(rng() * durations.length)];
+    const duration = pickWeightedDuration(
+      minReservationMin,
+      slotBlockMin,
+      durationBinPcts,
+      operatingMinutes,
+      rng
+    );
     const maxStart = operatingMinutes - duration;
     if (maxStart <= 0) continue;
 
@@ -96,8 +141,9 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
       lockedFraction,
       courts,
       schedule,
-      inputs.durations,
+      inputs.minReservationMin,
       inputs.slotBlockMin,
+      inputs.durationBinPcts,
       rng
     );
 
