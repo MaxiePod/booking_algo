@@ -4,7 +4,7 @@ import { SliderInput } from '../../calculator/components/SliderInput';
 import { InfoTooltip } from '../../shared/InfoTooltip';
 import { colors, fonts, spacing, borderRadius } from '../../shared/design-tokens';
 import type { SimulatorInputs, DurationBinPcts } from '../types';
-import { computeDurationBins, computeAvgDuration, DEFAULT_SIM_INPUTS } from '../types';
+import { computeDurationBins, DEFAULT_SIM_INPUTS } from '../types';
 
 interface SimInputPanelProps {
   inputs: SimulatorInputs;
@@ -171,15 +171,6 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
 
   const bins = computeDurationBins(inputs.minReservationMin, inputs.slotBlockMin);
 
-  const operatingMinutes = (inputs.closeHour - inputs.openHour) * 60;
-  const avgDuration = computeAvgDuration(
-    inputs.minReservationMin, inputs.slotBlockMin, inputs.durationBinPcts, operatingMinutes
-  );
-  const preAlgoUtil = Math.min(
-    1,
-    Math.max(0, (inputs.reservationsPerDay * avgDuration) / (inputs.numCourts * operatingMinutes))
-  );
-
   return (
     <div style={styles.panel}>
       <div style={styles.headingRow}>
@@ -200,7 +191,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         </div>
       </div>
 
-      {/* Courts + Open Hour + Close Hour on one row */}
+      {/* Courts, Open Hour, Close Hour on one row */}
       <div style={styles.threeColRow}>
         <div style={styles.threeCol}>
           <NumberInput
@@ -237,46 +228,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         </div>
       </div>
 
-      <SliderInput
-        label="Reservation Slots"
-        value={inputs.reservationsPerDay}
-        min={5}
-        max={maxReservationsPerDay}
-        onChange={(v) => onInputsChange({ reservationsPerDay: v })}
-        labelSuffix={<InfoTooltip text="Number of reservation slots generated per simulated day. Each slot represents one booking request placed into the system. The maximum is determined by operating hours, min reservation length, and court count." />}
-        defaultValue={DEFAULT_SIM_INPUTS.reservationsPerDay}
-        blinking={blinking}
-      />
-      <div style={styles.preAlgoUtil}>
-        ≈ {Math.round(preAlgoUtil * 100)}% estimated pre-algorithm utilization
-      </div>
-
-      <SliderInput
-        label="Locked Court %"
-        value={inputs.lockedPercent}
-        min={0}
-        max={100}
-        unit="%"
-        onChange={(v) => onInputsChange({ lockedPercent: v })}
-        labelSuffix={<InfoTooltip text="Percentage of reservations that are locked to a specific court (e.g. a member's preferred court). Locked reservations cannot be moved by the algorithm." />}
-        defaultValue={DEFAULT_SIM_INPUTS.lockedPercent}
-        blinking={blinking}
-      />
-
-      <SliderInput
-        label="Lock Premium"
-        value={inputs.lockPremiumPerHour}
-        min={0}
-        max={50}
-        prefix="$"
-        unit="/hr"
-        onChange={(v) => onInputsChange({ lockPremiumPerHour: v })}
-        labelSuffix={<InfoTooltip text="Additional surcharge per court-hour for customers who lock a specific court. This premium is collected on top of the base court rental price." />}
-        defaultValue={DEFAULT_SIM_INPUTS.lockPremiumPerHour}
-        blinking={blinking}
-      />
-
-      {/* Min Reservation Length + Slot Block Size side by side */}
+      {/* Min Reservation + Slot Block side by side */}
       <div style={styles.row}>
         <div style={styles.halfCol}>
           <div style={styles.fieldGroup}>
@@ -324,23 +276,64 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         </div>
       </div>
 
+      {/* Price / Hour + Lock Premium / Hour side by side */}
+      <div style={styles.row}>
+        <div style={styles.halfCol}>
+          <NumberInput
+            label="Price / Hour"
+            value={inputs.pricePerHour}
+            min={10}
+            max={300}
+            step={5}
+            compact
+            prefix="$"
+            onChange={(v) => onInputsChange({ pricePerHour: v })}
+            labelSuffix={<InfoTooltip text="Court rental price per hour. Used to estimate revenue differences between smart and naive assignment." />}
+          />
+        </div>
+        <div style={styles.halfCol}>
+          <NumberInput
+            label="Lock Premium / Hour"
+            value={inputs.lockPremiumPerHour}
+            min={0}
+            max={50}
+            compact
+            prefix="$"
+            onChange={(v) => onInputsChange({ lockPremiumPerHour: v })}
+            labelSuffix={<InfoTooltip text="Additional surcharge per court-hour for customers who lock a specific court. This premium is collected on top of the base court rental price." />}
+          />
+        </div>
+      </div>
+
+      <SliderInput
+        label="Current Capacity Utilization"
+        value={inputs.reservationsPerDay}
+        min={0}
+        max={maxReservationsPerDay}
+        onChange={(v) => onInputsChange({ reservationsPerDay: v })}
+        labelSuffix={<InfoTooltip text="Target court-time utilization. Determines how many reservations are generated per simulated day based on average reservation duration, operating hours, and court count." />}
+        defaultValue={DEFAULT_SIM_INPUTS.reservationsPerDay}
+        blinking={blinking}
+        renderValue={(v) => `${maxReservationsPerDay > 0 ? Math.round((v / maxReservationsPerDay) * 100) : 0}% (${v} res.)`}
+      />
+
+      <SliderInput
+        label="Locked Court %"
+        value={inputs.lockedPercent}
+        min={0}
+        max={100}
+        unit="%"
+        onChange={(v) => onInputsChange({ lockedPercent: v })}
+        labelSuffix={<InfoTooltip text="Percentage of reservations that are locked to a specific court (e.g. a member's preferred court). Locked reservations cannot be moved by the algorithm." />}
+        defaultValue={DEFAULT_SIM_INPUTS.lockedPercent}
+        blinking={blinking}
+      />
+
       <DurationBinSliders
         bins={bins}
         pcts={inputs.durationBinPcts}
         defaultPcts={DEFAULT_SIM_INPUTS.durationBinPcts}
         onChange={(pcts) => onInputsChange({ durationBinPcts: pcts })}
-        blinking={blinking}
-      />
-
-      <SliderInput
-        label="Price per Hour"
-        value={inputs.pricePerHour}
-        min={10}
-        max={300}
-        prefix="$"
-        onChange={(v) => onInputsChange({ pricePerHour: v })}
-        labelSuffix={<InfoTooltip text="Court rental price per hour. Used to estimate revenue differences between smart and naive assignment." />}
-        defaultValue={DEFAULT_SIM_INPUTS.pricePerHour}
         blinking={blinking}
       />
 
@@ -423,7 +416,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   threeColRow: {
     display: 'flex',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   threeCol: {
     flex: 1,
@@ -513,12 +506,5 @@ const styles: Record<string, React.CSSProperties> = {
   runButtonDisabled: {
     backgroundColor: colors.textMuted,
     cursor: 'not-allowed',
-  },
-  preAlgoUtil: {
-    fontSize: fonts.sizeSmall,
-    fontStyle: 'italic',
-    color: colors.textMuted,
-    marginTop: '-12px',
-    marginBottom: spacing.lg,
   },
 };

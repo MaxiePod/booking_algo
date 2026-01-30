@@ -17,6 +17,8 @@ interface SliderInputProps {
   defaultValue?: number;
   /** When true, the default-value triangle blinks to draw attention */
   blinking?: boolean;
+  /** Custom render for the value display (overrides default prefix+value+unit) */
+  renderValue?: (value: number) => React.ReactNode;
 }
 
 /** Amber color for default-value triangle marks (matches variance tooltip bell curve) */
@@ -52,6 +54,7 @@ export const SliderInput: React.FC<SliderInputProps> = ({
   labelSuffix,
   defaultValue,
   blinking,
+  renderValue,
 }) => {
   React.useEffect(() => { ensureBlinkStyle(); }, []);
 
@@ -68,7 +71,7 @@ export const SliderInput: React.FC<SliderInputProps> = ({
           {labelSuffix}
         </label>
         <span style={styles.value}>
-          {prefix}{value}{unit}
+          {renderValue ? renderValue(value) : <>{prefix}{value}{unit}</>}
         </span>
       </div>
       <div style={styles.sliderTrack}>

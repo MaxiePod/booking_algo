@@ -1,11 +1,14 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import type { SimulatorInputs, SimulatorResults, DurationBinPcts } from '../types';
-import { DEFAULT_SIM_INPUTS } from '../types';
+import { DEFAULT_SIM_INPUTS, computeAvgDuration } from '../types';
 import { runComparison } from '../run-simulation';
 
 function computeMaxReservations(inputs: SimulatorInputs): number {
   const operatingMinutes = (inputs.closeHour - inputs.openHour) * 60;
-  return Math.floor(operatingMinutes / inputs.minReservationMin) * inputs.numCourts;
+  const avgDuration = computeAvgDuration(
+    inputs.minReservationMin, inputs.slotBlockMin, inputs.durationBinPcts, operatingMinutes
+  );
+  return avgDuration > 0 ? Math.floor((inputs.numCourts * operatingMinutes) / avgDuration) : 0;
 }
 
 export interface UseSimulatorReturn {
@@ -28,7 +31,7 @@ export function useSimulator(): UseSimulatorReturn {
 
   const maxReservationsPerDay = useMemo(
     () => computeMaxReservations(inputs),
-    [inputs.numCourts, inputs.openHour, inputs.closeHour, inputs.minReservationMin]
+    [inputs.numCourts, inputs.openHour, inputs.closeHour, inputs.minReservationMin, inputs.slotBlockMin, inputs.durationBinPcts]
   );
 
   const setInputs = (partial: Partial<SimulatorInputs>) => {

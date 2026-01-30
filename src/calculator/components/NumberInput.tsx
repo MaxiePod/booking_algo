@@ -11,6 +11,10 @@ interface NumberInputProps {
   onChange: (value: number) => void;
   /** Optional React node rendered after the label text (e.g. InfoTooltip) */
   labelSuffix?: React.ReactNode;
+  /** Rendered before the − button inside the input group (e.g. "$") */
+  prefix?: string;
+  /** Rendered after the + button inside the input group (e.g. "/hr") */
+  unit?: string;
 }
 
 export const NumberInput: React.FC<NumberInputProps> = ({
@@ -22,13 +26,16 @@ export const NumberInput: React.FC<NumberInputProps> = ({
   compact = false,
   onChange,
   labelSuffix,
+  prefix,
+  unit,
 }) => {
   const handleChange = (newValue: number) => {
     onChange(Math.min(max, Math.max(min, newValue)));
   };
 
-  const btnSize = compact ? '32px' : '40px';
-  const inputW = compact ? '48px' : '80px';
+  const btnSize = compact ? '26px' : '40px';
+  const hasAdornment = !!(prefix || unit);
+  const inputW = compact ? (hasAdornment ? '40px' : '36px') : '80px';
 
   return (
     <div style={styles.container}>
@@ -37,8 +44,9 @@ export const NumberInput: React.FC<NumberInputProps> = ({
         {labelSuffix}
       </label>
       <div style={styles.inputGroup}>
+        {prefix && <span style={{ ...styles.adornment, ...(compact ? { padding: '0 4px', fontSize: '11px' } : {}) }}>{prefix}</span>}
         <button
-          style={{ ...styles.button, width: btnSize, height: btnSize }}
+          style={{ ...styles.button, width: btnSize, height: btnSize, ...(compact ? { fontSize: '13px' } : {}) }}
           onClick={() => handleChange(value - step)}
           disabled={value <= min}
           aria-label={`Decrease ${label}`}
@@ -52,16 +60,17 @@ export const NumberInput: React.FC<NumberInputProps> = ({
           max={max}
           step={step}
           onChange={(e) => handleChange(Number(e.target.value))}
-          style={{ ...styles.input, width: inputW, height: btnSize }}
+          style={{ ...styles.input, width: inputW, height: btnSize, ...(compact ? { fontSize: '13px' } : {}) }}
         />
         <button
-          style={{ ...styles.button, width: btnSize, height: btnSize }}
+          style={{ ...styles.button, width: btnSize, height: btnSize, ...(compact ? { fontSize: '13px' } : {}) }}
           onClick={() => handleChange(value + step)}
           disabled={value >= max}
           aria-label={`Increase ${label}`}
         >
           +
         </button>
+        {unit && <span style={{ ...styles.adornment, ...(compact ? { padding: '0 4px', fontSize: '11px' } : {}) }}>{unit}</span>}
       </div>
     </div>
   );
@@ -99,6 +108,14 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'center',
     lineHeight: 1,
     transition: 'background-color 0.15s',
+  },
+  adornment: {
+    fontSize: fonts.sizeSmall,
+    color: colors.textMuted,
+    padding: '0 6px',
+    display: 'flex',
+    alignItems: 'center',
+    userSelect: 'none' as const,
   },
   input: {
     border: 'none',

@@ -93,7 +93,7 @@ export const DEFAULT_SIM_INPUTS: SimulatorInputs = {
   openHour: 8,
   closeHour: 22,
   reservationsPerDay: 30,
-  lockedPercent: 50,
+  lockedPercent: 11,
   minReservationMin: 60,
   slotBlockMin: 30,
   durationBinPcts: [40, 30, 20, 10],
