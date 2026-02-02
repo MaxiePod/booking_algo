@@ -58,6 +58,22 @@ export interface SimulatorInputs {
   pricePerHour: number;
   lockPremiumPerHour: number;
   varianceCV: number;
+  overflowMultiplier: number;
+}
+
+export interface IterationResult {
+  smartUtil: number;   // 0-1 fraction
+  naiveUtil: number;
+  overflowGenerated: number;
+  overflowPlacedSmart: number;
+  overflowPlacedNaive: number;
+}
+
+export interface GapBreakdown {
+  bookedMinutes: number;
+  usableGapMinutes: number;   // gap.stranded === false
+  strandedGapMinutes: number; // gap.stranded === true
+  strandedCount: number;
 }
 
 export interface SimulatorResults {
@@ -71,6 +87,12 @@ export interface SimulatorResults {
   savingsPerDay: number;
   savingsPercent: number;
   lockPremiumPerDay: number;
+  iterationResults: IterationResult[];
+  overflowGenerated: number;
+  overflowPlacedSmart: number;
+  overflowPlacedNaive: number;
+  smartGaps: GapBreakdown;
+  naiveGaps: GapBreakdown;
   /** A sample day's raw results for timeline visualization */
   sampleDay: {
     smart: AssignmentResult;
@@ -101,4 +123,5 @@ export const DEFAULT_SIM_INPUTS: SimulatorInputs = {
   pricePerHour: 80,
   lockPremiumPerHour: 10,
   varianceCV: 15,
+  overflowMultiplier: 1.0,
 };

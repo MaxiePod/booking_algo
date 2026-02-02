@@ -191,175 +191,196 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
         </div>
       </div>
 
-      {/* Courts, Open Hour, Close Hour on one row */}
-      <div style={styles.threeColRow}>
-        <div style={styles.threeCol}>
-          <NumberInput
-            label="Courts"
-            value={inputs.numCourts}
-            min={1}
-            max={20}
-            compact
-            onChange={(v) => onInputsChange({ numCourts: v })}
-            labelSuffix={<InfoTooltip text="Number of courts available for booking at the facility." />}
+      <div style={styles.columnsRow}>
+        {/* ── Left column: number inputs, chips, duration bins ── */}
+        <div style={styles.leftCol}>
+          {/* Courts, Open Hour, Close Hour on one row */}
+          <div style={styles.threeColRow}>
+            <div style={styles.threeCol}>
+              <NumberInput
+                label="Courts"
+                value={inputs.numCourts}
+                min={1}
+                max={20}
+                compact
+                onChange={(v) => onInputsChange({ numCourts: v })}
+                labelSuffix={<InfoTooltip text="Number of courts available for booking at the facility." />}
+              />
+            </div>
+            <div style={styles.threeCol}>
+              <NumberInput
+                label="Open Hour"
+                value={inputs.openHour}
+                min={0}
+                max={inputs.closeHour - 1}
+                compact
+                onChange={(v) => onInputsChange({ openHour: v })}
+                labelSuffix={<InfoTooltip text="The hour the facility opens (24h format). Courts can be booked starting from this time." />}
+              />
+            </div>
+            <div style={styles.threeCol}>
+              <NumberInput
+                label="Close Hour"
+                value={inputs.closeHour}
+                min={inputs.openHour + 1}
+                max={24}
+                compact
+                onChange={(v) => onInputsChange({ closeHour: v })}
+                labelSuffix={<InfoTooltip text="The hour the facility closes (24h format). All reservations must end by this time." />}
+              />
+            </div>
+          </div>
+
+          {/* Min Reservation + Slot Block side by side */}
+          <div style={styles.row}>
+            <div style={styles.halfCol}>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>
+                  Min Reservation
+                  <InfoTooltip text="Minimum allowed reservation length in minutes. This is the shortest booking a player can make." />
+                </label>
+                <div style={styles.chipRow}>
+                  {[30, 60, 90].map((m) => (
+                    <button
+                      key={m}
+                      style={{
+                        ...styles.chip,
+                        ...(inputs.minReservationMin === m ? styles.chipActive : {}),
+                      }}
+                      onClick={() => onInputsChange({ minReservationMin: m })}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={styles.halfCol}>
+              <div style={styles.fieldGroup}>
+                <label style={styles.label}>
+                  Slot Block
+                  <InfoTooltip text="The time grid granularity in minutes. Reservations start and end on multiples of this value (e.g. 30 min means bookings at :00 and :30)." />
+                </label>
+                <div style={styles.chipRow}>
+                  {[15, 30, 60].map((m) => (
+                    <button
+                      key={m}
+                      style={{
+                        ...styles.chip,
+                        ...(inputs.slotBlockMin === m ? styles.chipActive : {}),
+                      }}
+                      onClick={() => onInputsChange({ slotBlockMin: m })}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Price / Hour + Lock Premium / Hour side by side */}
+          <div style={styles.row}>
+            <div style={styles.halfCol}>
+              <NumberInput
+                label="Price / Hour"
+                value={inputs.pricePerHour}
+                min={10}
+                max={300}
+                step={5}
+                compact
+                prefix="$"
+                onChange={(v) => onInputsChange({ pricePerHour: v })}
+                labelSuffix={<InfoTooltip text="Court rental price per hour. Used to estimate revenue differences between smart and naive assignment." />}
+              />
+            </div>
+            <div style={styles.halfCol}>
+              <NumberInput
+                label="Lock Premium / Hour"
+                value={inputs.lockPremiumPerHour}
+                min={0}
+                max={50}
+                compact
+                prefix="$"
+                onChange={(v) => onInputsChange({ lockPremiumPerHour: v })}
+                labelSuffix={<InfoTooltip text="Additional surcharge per court-hour for customers who lock a specific court. This premium is collected on top of the base court rental price." />}
+              />
+            </div>
+          </div>
+
+          <DurationBinSliders
+            bins={bins}
+            pcts={inputs.durationBinPcts}
+            defaultPcts={DEFAULT_SIM_INPUTS.durationBinPcts}
+            onChange={(pcts) => onInputsChange({ durationBinPcts: pcts })}
+            blinking={blinking}
           />
         </div>
-        <div style={styles.threeCol}>
-          <NumberInput
-            label="Open Hour"
-            value={inputs.openHour}
+
+        {/* ── Right column: all sliders ── */}
+        <div style={styles.rightCol}>
+          <SliderInput
+            label="Current Capacity Utilization"
+            value={inputs.reservationsPerDay}
             min={0}
-            max={inputs.closeHour - 1}
-            compact
-            onChange={(v) => onInputsChange({ openHour: v })}
-            labelSuffix={<InfoTooltip text="The hour the facility opens (24h format). Courts can be booked starting from this time." />}
+            max={maxReservationsPerDay}
+            onChange={(v) => onInputsChange({ reservationsPerDay: v })}
+            labelSuffix={<InfoTooltip text="Target court-time utilization. Determines how many reservations are generated per simulated day based on average reservation duration, operating hours, and court count." />}
+            defaultValue={DEFAULT_SIM_INPUTS.reservationsPerDay}
+            blinking={blinking}
+            renderValue={(v) => `${maxReservationsPerDay > 0 ? Math.round((v / maxReservationsPerDay) * 100) : 0}% (${v} res.)`}
           />
-        </div>
-        <div style={styles.threeCol}>
-          <NumberInput
-            label="Close Hour"
-            value={inputs.closeHour}
-            min={inputs.openHour + 1}
-            max={24}
-            compact
-            onChange={(v) => onInputsChange({ closeHour: v })}
-            labelSuffix={<InfoTooltip text="The hour the facility closes (24h format). All reservations must end by this time." />}
-          />
-        </div>
-      </div>
 
-      {/* Min Reservation + Slot Block side by side */}
-      <div style={styles.row}>
-        <div style={styles.halfCol}>
-          <div style={styles.fieldGroup}>
-            <label style={styles.label}>
-              Min Reservation
-              <InfoTooltip text="Minimum allowed reservation length in minutes. This is the shortest booking a player can make." />
-            </label>
-            <div style={styles.chipRow}>
-              {[30, 60, 90].map((m) => (
-                <button
-                  key={m}
-                  style={{
-                    ...styles.chip,
-                    ...(inputs.minReservationMin === m ? styles.chipActive : {}),
-                  }}
-                  onClick={() => onInputsChange({ minReservationMin: m })}
-                >
-                  {m}m
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div style={styles.halfCol}>
-          <div style={styles.fieldGroup}>
-            <label style={styles.label}>
-              Slot Block
-              <InfoTooltip text="The time grid granularity in minutes. Reservations start and end on multiples of this value (e.g. 30 min means bookings at :00 and :30)." />
-            </label>
-            <div style={styles.chipRow}>
-              {[15, 30, 60].map((m) => (
-                <button
-                  key={m}
-                  style={{
-                    ...styles.chip,
-                    ...(inputs.slotBlockMin === m ? styles.chipActive : {}),
-                  }}
-                  onClick={() => onInputsChange({ slotBlockMin: m })}
-                >
-                  {m}m
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Price / Hour + Lock Premium / Hour side by side */}
-      <div style={styles.row}>
-        <div style={styles.halfCol}>
-          <NumberInput
-            label="Price / Hour"
-            value={inputs.pricePerHour}
-            min={10}
-            max={300}
-            step={5}
-            compact
-            prefix="$"
-            onChange={(v) => onInputsChange({ pricePerHour: v })}
-            labelSuffix={<InfoTooltip text="Court rental price per hour. Used to estimate revenue differences between smart and naive assignment." />}
+          <SliderInput
+            label="Locked Court %"
+            value={inputs.lockedPercent}
+            min={0}
+            max={100}
+            unit="%"
+            onChange={(v) => onInputsChange({ lockedPercent: v })}
+            labelSuffix={<InfoTooltip text="Percentage of reservations that are locked to a specific court (e.g. a member's preferred court). Locked reservations cannot be moved by the algorithm." />}
+            defaultValue={DEFAULT_SIM_INPUTS.lockedPercent}
+            blinking={blinking}
           />
-        </div>
-        <div style={styles.halfCol}>
-          <NumberInput
-            label="Lock Premium / Hour"
-            value={inputs.lockPremiumPerHour}
+
+          <SliderInput
+            label="Day-to-Day Variance (CV)"
+            value={inputs.varianceCV}
             min={0}
             max={50}
-            compact
-            prefix="$"
-            onChange={(v) => onInputsChange({ lockPremiumPerHour: v })}
-            labelSuffix={<InfoTooltip text="Additional surcharge per court-hour for customers who lock a specific court. This premium is collected on top of the base court rental price." />}
+            unit="%"
+            onChange={(v) => onInputsChange({ varianceCV: v })}
+            labelSuffix={<InfoTooltip text={<VarianceTooltip mean={inputs.reservationsPerDay} />} />}
+            defaultValue={DEFAULT_SIM_INPUTS.varianceCV}
+            blinking={blinking}
+          />
+
+          <SliderInput
+            label="Demand Pressure"
+            value={inputs.overflowMultiplier}
+            min={0}
+            max={3}
+            step={0.5}
+            onChange={(v) => onInputsChange({ overflowMultiplier: v })}
+            labelSuffix={<InfoTooltip text="Models pent-up demand: customers who would book if courts were available. At busy times, some people are turned away — this estimates how many. 0 = off, 1 = moderate, 3 = heavy traffic." />}
+            defaultValue={DEFAULT_SIM_INPUTS.overflowMultiplier}
+            blinking={blinking}
+            renderValue={(v) => v === 0 ? 'Off' : `${v.toFixed(1)}×`}
+          />
+
+          <SliderInput
+            label="Iterations"
+            value={inputs.iterations}
+            min={10}
+            max={100}
+            step={10}
+            onChange={(v) => onInputsChange({ iterations: v })}
+            labelSuffix={<InfoTooltip text="Number of Monte Carlo simulation runs. More iterations give more stable averages but take longer to compute." />}
+            defaultValue={DEFAULT_SIM_INPUTS.iterations}
+            blinking={blinking}
           />
         </div>
       </div>
-
-      <SliderInput
-        label="Current Capacity Utilization"
-        value={inputs.reservationsPerDay}
-        min={0}
-        max={maxReservationsPerDay}
-        onChange={(v) => onInputsChange({ reservationsPerDay: v })}
-        labelSuffix={<InfoTooltip text="Target court-time utilization. Determines how many reservations are generated per simulated day based on average reservation duration, operating hours, and court count." />}
-        defaultValue={DEFAULT_SIM_INPUTS.reservationsPerDay}
-        blinking={blinking}
-        renderValue={(v) => `${maxReservationsPerDay > 0 ? Math.round((v / maxReservationsPerDay) * 100) : 0}% (${v} res.)`}
-      />
-
-      <SliderInput
-        label="Locked Court %"
-        value={inputs.lockedPercent}
-        min={0}
-        max={100}
-        unit="%"
-        onChange={(v) => onInputsChange({ lockedPercent: v })}
-        labelSuffix={<InfoTooltip text="Percentage of reservations that are locked to a specific court (e.g. a member's preferred court). Locked reservations cannot be moved by the algorithm." />}
-        defaultValue={DEFAULT_SIM_INPUTS.lockedPercent}
-        blinking={blinking}
-      />
-
-      <DurationBinSliders
-        bins={bins}
-        pcts={inputs.durationBinPcts}
-        defaultPcts={DEFAULT_SIM_INPUTS.durationBinPcts}
-        onChange={(pcts) => onInputsChange({ durationBinPcts: pcts })}
-        blinking={blinking}
-      />
-
-      <SliderInput
-        label="Day-to-Day Variance (CV)"
-        value={inputs.varianceCV}
-        min={0}
-        max={50}
-        unit="%"
-        onChange={(v) => onInputsChange({ varianceCV: v })}
-        labelSuffix={<InfoTooltip text={<VarianceTooltip mean={inputs.reservationsPerDay} />} />}
-        defaultValue={DEFAULT_SIM_INPUTS.varianceCV}
-        blinking={blinking}
-      />
-
-      <SliderInput
-        label="Iterations"
-        value={inputs.iterations}
-        min={10}
-        max={100}
-        step={10}
-        onChange={(v) => onInputsChange({ iterations: v })}
-        labelSuffix={<InfoTooltip text="Number of Monte Carlo simulation runs. More iterations give more stable averages but take longer to compute." />}
-        defaultValue={DEFAULT_SIM_INPUTS.iterations}
-        blinking={blinking}
-      />
 
       <button
         style={{
@@ -386,7 +407,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   heading: {
     fontSize: fonts.sizeLg,
@@ -407,6 +428,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: fonts.family,
     transition: 'all 0.15s',
   },
+  columnsRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: spacing.xl,
+    alignItems: 'start',
+  },
+  leftCol: {},
+  rightCol: {},
   row: {
     display: 'flex',
     gap: spacing.md,

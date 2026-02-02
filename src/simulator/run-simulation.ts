@@ -8,7 +8,7 @@ import type {
 import { assignCourts } from '../algorithm/court-assigner';
 import { naiveAssignCourts } from '../algorithm/naive-assigner';
 import { slotDuration } from '../algorithm/utils';
-import type { SimulatorInputs, SimulatorResults, RunStats, DurationBinPcts } from './types';
+import type { SimulatorInputs, SimulatorResults, RunStats, DurationBinPcts, IterationResult, GapBreakdown } from './types';
 
 function createRng(seed: number): () => number {
   let s = seed | 0;
@@ -244,6 +244,101 @@ function generateReservations(
   return reservations;
 }
 
+/**
+ * Generate overflow reservations — pent-up demand that targets congested time slots.
+ * These represent customers who would book but can't because courts are full.
+ * All overflow is flexible (walk-in/opportunistic).
+ */
+function generateOverflow(
+  baseReservations: Reservation[],
+  numCourts: number,
+  schedule: OperatingSchedule,
+  slotBlockMin: number,
+  minReservationMin: number,
+  durationBinPcts: DurationBinPcts,
+  overflowMultiplier: number,
+  rng: () => number
+): Reservation[] {
+  if (overflowMultiplier <= 0) return [];
+
+  const openTime = schedule.openTime;
+  const closeTime = schedule.closeTime;
+  const operatingMinutes = closeTime - openTime;
+  const numSlots = Math.ceil(operatingMinutes / slotBlockMin);
+
+  // Step 1: Build per-slot occupancy from base reservations
+  const slotOccupancy = new Float64Array(numSlots);
+  for (const res of baseReservations) {
+    const fromSlot = Math.floor((res.slot.start - openTime) / slotBlockMin);
+    const toSlot = Math.ceil((res.slot.end - openTime) / slotBlockMin);
+    for (let i = fromSlot; i < toSlot && i < numSlots; i++) {
+      slotOccupancy[i]++;
+    }
+  }
+
+  // Step 2: Compute pressure per slot: max(0, (f - 0.5))² / 0.25
+  const pressure = new Float64Array(numSlots);
+  let totalPressure = 0;
+  for (let i = 0; i < numSlots; i++) {
+    const f = slotOccupancy[i] / numCourts;
+    const p = f > 0.5 ? ((f - 0.5) * (f - 0.5)) / 0.25 : 0;
+    pressure[i] = p;
+    totalPressure += p;
+  }
+
+  if (totalPressure === 0) return [];
+
+  // Step 3: Overflow count
+  const overflowCount = Math.round(totalPressure * overflowMultiplier);
+  if (overflowCount === 0) return [];
+
+  // Step 4: Build CDF from pressure for weighted start-time sampling
+  const cdf = new Float64Array(numSlots);
+  cdf[0] = pressure[0];
+  for (let i = 1; i < numSlots; i++) {
+    cdf[i] = cdf[i - 1] + pressure[i];
+  }
+  // Normalize
+  const cdfTotal = cdf[numSlots - 1];
+  if (cdfTotal > 0) {
+    for (let i = 0; i < numSlots; i++) {
+      cdf[i] /= cdfTotal;
+    }
+  }
+
+  // Step 5: Generate overflow reservations
+  const overflow: Reservation[] = [];
+  for (let j = 0; j < overflowCount; j++) {
+    // Sample start from CDF (binary search)
+    const u = rng();
+    let lo = 0;
+    let hi = numSlots - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (cdf[mid] < u) lo = mid + 1;
+      else hi = mid;
+    }
+    const startSlot = lo;
+    const start = openTime + startSlot * slotBlockMin;
+
+    // Sample duration
+    const duration = pickWeightedDuration(
+      minReservationMin, slotBlockMin, durationBinPcts, operatingMinutes, rng
+    );
+
+    // Skip if extends past close
+    if (start + duration > closeTime) continue;
+
+    overflow.push({
+      id: `overflow-${j}`,
+      slot: { start, end: start + duration },
+      mode: 'flexible',
+    });
+  }
+
+  return overflow;
+}
+
 function utilization(result: AssignmentResult, totalMinutes: number): number {
   const booked = result.assignments.reduce(
     (s, a) => s + slotDuration(a.slot),
@@ -255,6 +350,28 @@ function utilization(result: AssignmentResult, totalMinutes: number): number {
 function avg(arr: number[]): number {
   if (arr.length === 0) return 0;
   return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+function computeGapBreakdown(results: AssignmentResult[], totalMinutes: number): GapBreakdown {
+  const bookedMinutes = avg(
+    results.map((r) =>
+      r.assignments.reduce((s, a) => s + slotDuration(a.slot), 0)
+    )
+  );
+  const strandedGapMinutes = avg(
+    results.map((r) =>
+      r.gaps.filter((g) => g.stranded).reduce((s, g) => s + g.duration, 0)
+    )
+  );
+  const usableGapMinutes = avg(
+    results.map((r) =>
+      r.gaps.filter((g) => !g.stranded).reduce((s, g) => s + g.duration, 0)
+    )
+  );
+  const strandedCount = avg(
+    results.map((r) => r.gaps.filter((g) => g.stranded).length)
+  );
+  return { bookedMinutes, usableGapMinutes, strandedGapMinutes, strandedCount };
 }
 
 export function runComparison(inputs: SimulatorInputs): SimulatorResults {
@@ -276,6 +393,7 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
 
   const smartResults: AssignmentResult[] = [];
   const naiveResults: AssignmentResult[] = [];
+  const iterationResults: IterationResult[] = [];
 
   const cv = inputs.varianceCV / 100; // convert percentage to fraction
   const maxPossible = Math.floor(
@@ -290,7 +408,7 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
         ? sampleNormal(inputs.reservationsPerDay, cv, maxPossible, rng)
         : inputs.reservationsPerDay;
 
-    const reservations = generateReservations(
+    const base = generateReservations(
       count,
       lockedFraction,
       courts,
@@ -301,10 +419,38 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
       rng
     );
 
-    smartResults.push(assignCourts(reservations, config));
+    const overflow = generateOverflow(
+      base,
+      inputs.numCourts,
+      schedule,
+      inputs.slotBlockMin,
+      inputs.minReservationMin,
+      inputs.durationBinPcts,
+      inputs.overflowMultiplier,
+      rng
+    );
+
+    const reservations = [...base, ...overflow];
+
+    const smartResult = assignCourts(reservations, config);
+    smartResults.push(smartResult);
 
     const naiveRng = createRng(baseSeed + i * 1000 + 500);
-    naiveResults.push(naiveAssignCourts(reservations, config, naiveRng));
+    const naiveResult = naiveAssignCourts(reservations, config, naiveRng);
+    naiveResults.push(naiveResult);
+
+    // Count overflow placements by checking which overflow IDs got assigned
+    const overflowIds = new Set(overflow.map((r) => r.id));
+    const overflowPlacedSmart = smartResult.assignments.filter((a) => overflowIds.has(a.id)).length;
+    const overflowPlacedNaive = naiveResult.assignments.filter((a) => overflowIds.has(a.id)).length;
+
+    iterationResults.push({
+      smartUtil: utilization(smartResult, totalMinutes),
+      naiveUtil: utilization(naiveResult, totalMinutes),
+      overflowGenerated: overflow.length,
+      overflowPlacedSmart,
+      overflowPlacedNaive,
+    });
   }
 
   const smart: RunStats = {
@@ -351,6 +497,9 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
   );
   const lockPremiumPerDay = (avgLockedMinutes / 60) * inputs.lockPremiumPerHour;
 
+  const smartGaps = computeGapBreakdown(smartResults, totalMinutes);
+  const naiveGaps = computeGapBreakdown(naiveResults, totalMinutes);
+
   return {
     smart,
     naive,
@@ -362,6 +511,12 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
     savingsPerDay,
     savingsPercent,
     lockPremiumPerDay,
+    iterationResults,
+    overflowGenerated: avg(iterationResults.map((r) => r.overflowGenerated)),
+    overflowPlacedSmart: avg(iterationResults.map((r) => r.overflowPlacedSmart)),
+    overflowPlacedNaive: avg(iterationResults.map((r) => r.overflowPlacedNaive)),
+    smartGaps,
+    naiveGaps,
     sampleDay: {
       smart: smartResults[bestSampleIdx],
       naive: naiveResults[bestSampleIdx],

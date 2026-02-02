@@ -15,6 +15,7 @@ interface InputPanelProps {
   onPriceChange: (v: number) => void;
   onLockedChange: (v: number) => void;
   onLockPremiumChange: (v: number) => void;
+  onReset: () => void;
 }
 
 export const InputPanel: React.FC<InputPanelProps> = ({
@@ -24,22 +25,34 @@ export const InputPanel: React.FC<InputPanelProps> = ({
   onPriceChange,
   onLockedChange,
   onLockPremiumChange,
+  onReset,
 }) => {
+  const [blinking, setBlinking] = React.useState(false);
+
+  const handleReset = () => {
+    onReset();
+    setBlinking(true);
+    setTimeout(() => setBlinking(false), 1100);
+  };
+
   return (
     <div style={styles.panel}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl }}>
         <h3 style={{ ...styles.heading, marginBottom: 0 }}>Your Facility</h3>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: colors.textMuted, fontSize: fonts.sizeSmall }}>
-          <span style={{
-            display: 'inline-block',
-            width: 0,
-            height: 0,
-            borderLeft: '4px solid transparent',
-            borderRight: '4px solid transparent',
-            borderTop: '6px solid #f59e0b',
-          }} />
-          Default
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: colors.textMuted, fontSize: fonts.sizeSmall }}>
+            <span style={{
+              display: 'inline-block',
+              width: 0,
+              height: 0,
+              borderLeft: '4px solid transparent',
+              borderRight: '4px solid transparent',
+              borderTop: '6px solid #f59e0b',
+            }} />
+            Default
+          </span>
+          <button style={styles.resetButton} onClick={handleReset}>Reset to Defaults</button>
+        </div>
       </div>
 
       <NumberInput
@@ -58,6 +71,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         unit="%"
         onChange={onUtilizationChange}
         defaultValue={DEFAULT_INPUTS.currentUtilizationPercent}
+        blinking={blinking}
       />
 
       <CurrencyInput
@@ -76,6 +90,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         unit="%"
         onChange={onLockedChange}
         defaultValue={DEFAULT_INPUTS.lockedPercent}
+        blinking={blinking}
       />
 
       <SliderInput
@@ -87,6 +102,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         unit="/hr"
         onChange={onLockPremiumChange}
         defaultValue={DEFAULT_INPUTS.lockPremiumPerHour}
+        blinking={blinking}
       />
 
       <InefficiencyCurve
@@ -113,5 +129,17 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 0,
     marginBottom: spacing.xl,
     letterSpacing: '-0.3px',
+  },
+  resetButton: {
+    padding: '4px 10px',
+    border: `1px solid ${colors.border}`,
+    borderRadius: borderRadius.sm,
+    backgroundColor: 'transparent',
+    color: colors.textMuted,
+    fontSize: fonts.sizeSmall,
+    fontWeight: fonts.weightMedium,
+    cursor: 'pointer',
+    fontFamily: fonts.family,
+    transition: 'all 0.15s',
   },
 };

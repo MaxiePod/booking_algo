@@ -93,7 +93,7 @@ export function computeAnimSteps(
 
 /** Base timing in ms — batch moves get more time for visual clarity. */
 function stepBaseMs(step: AnimStep): number {
-  return step.type === 'batch-move' ? 1500 : 800;
+  return step.type === 'batch-move' ? 4300 : 2300;
 }
 
 export interface TimelineAnimationState {

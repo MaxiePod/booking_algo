@@ -35,8 +35,7 @@ export const borderRadius = {
 } as const;
 
 export const fonts = {
-  family:
-    'system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+  family: "'Roboto', sans-serif",
   sizeSmall: '12px',
   sizeBase: '14px',
   sizeMd: '16px',
@@ -45,7 +44,7 @@ export const fonts = {
   sizeXxl: '36px',
   weightNormal: '400',
   weightMedium: '500',
-  weightSemibold: '600',
+  weightSemibold: '500',
   weightBold: '700',
 } as const;
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { SavingsCalculator } from './calculator/SavingsCalculator';
 import { SimulatorPage } from './simulator/SimulatorPage';
-import { colors } from './shared/design-tokens';
+import { colors, fonts } from './shared/design-tokens';
 
 type Tab = 'calculator' | 'simulator';
 
@@ -36,7 +36,7 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: '100vh',
     backgroundColor: colors.pageBg,
     padding: '32px 16px 48px',
-    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    fontFamily: fonts.family,
   },
   nav: {
     display: 'flex',

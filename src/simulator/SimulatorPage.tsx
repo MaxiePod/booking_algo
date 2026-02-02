@@ -3,6 +3,7 @@ import { useSimulator } from './hooks/useSimulator';
 import { SimInputPanel } from './components/SimInputPanel';
 import { SimResultsPanel } from './components/SimResultsPanel';
 import { AnimatedTimeline } from './components/AnimatedTimeline';
+import { OccupancyHeatmap } from './components/OccupancyHeatmap';
 import { colors, fonts, spacing } from '../shared/design-tokens';
 
 export const SimulatorPage: React.FC = () => {
@@ -17,17 +18,15 @@ export const SimulatorPage: React.FC = () => {
           placement. Configure your scenario and run a Monte Carlo simulation.
         </p>
       </div>
-      <div className="podplay-calc-grid" style={styles.grid}>
-        <SimInputPanel
-          inputs={inputs}
-          running={running}
-          maxReservationsPerDay={maxReservationsPerDay}
-          onInputsChange={setInputs}
-          onRun={run}
-          onReset={resetInputs}
-        />
-        <SimResultsPanel results={results} running={running} />
-      </div>
+      <SimInputPanel
+        inputs={inputs}
+        running={running}
+        maxReservationsPerDay={maxReservationsPerDay}
+        onInputsChange={setInputs}
+        onRun={run}
+        onReset={resetInputs}
+      />
+      <SimResultsPanel results={results} running={running} />
 
       {results && !running && (
         <AnimatedTimeline
@@ -37,6 +36,10 @@ export const SimulatorPage: React.FC = () => {
           openTime={results.sampleDay.openTime}
           closeTime={results.sampleDay.closeTime}
         />
+      )}
+
+      {results && !running && (
+        <OccupancyHeatmap sampleDay={results.sampleDay} />
       )}
     </div>
   );
@@ -70,11 +73,5 @@ const styles: Record<string, React.CSSProperties> = {
     marginLeft: 'auto',
     marginRight: 'auto',
     lineHeight: 1.6,
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: spacing.xl,
-    alignItems: 'stretch',
   },
 };

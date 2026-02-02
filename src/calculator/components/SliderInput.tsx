@@ -33,11 +33,16 @@ function ensureBlinkStyle() {
   style.id = BLINK_STYLE_ID;
   style.textContent = `
 @keyframes podplay-default-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.15; }
+  0%    { opacity: 1;    transform: scale(3); }
+  16.5% { opacity: 0.15; transform: scale(3); }
+  33%   { opacity: 1;    transform: scale(3); }
+  49.5% { opacity: 0.15; transform: scale(3); }
+  66%   { opacity: 1;    transform: scale(1); }
+  83%   { opacity: 0.15; transform: scale(1); }
+  100%  { opacity: 1;    transform: scale(1); }
 }
 .podplay-default-blink {
-  animation: podplay-default-blink 0.33s ease-in-out 3;
+  animation: podplay-default-blink 1s ease-in-out 1;
 }`;
   document.head.appendChild(style);
 }

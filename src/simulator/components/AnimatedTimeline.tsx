@@ -63,7 +63,7 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
     anim.currentStepIndex >= 0 && anim.currentStepIndex < anim.steps.length
       ? anim.steps[anim.currentStepIndex]
       : null;
-  const baseMs = currentStep?.type === 'batch-move' ? 1500 : 800;
+  const baseMs = currentStep?.type === 'batch-move' ? 4300 : 2300;
   const transitionMs = (baseMs * 0.6) / anim.speed;
 
   // ── Identify the batch-move step (always index 0 if it exists) ──────
@@ -253,6 +253,13 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
   const gapReduction = Math.round(naive.totalGapMinutes - smart.totalGapMinutes);
   const moveCount = batchStep ? batchStep.moves.length : 0;
   const addCount = anim.steps.filter((s) => s.type === 'add').length;
+  const naiveStranded = naive.gaps.filter((g) => g.stranded);
+  const smartStranded = smart.gaps.filter((g) => g.stranded);
+  const strandedCountDelta = naiveStranded.length - smartStranded.length;
+  const strandedMinDelta = Math.round(
+    naiveStranded.reduce((s, g) => s + g.duration, 0) -
+    smartStranded.reduce((s, g) => s + g.duration, 0)
+  );
   const atLastStep =
     anim.currentStepIndex >= anim.steps.length - 1 || anim.phase === 'done';
 
@@ -276,12 +283,12 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
     <div style={styles.container}>
       {/* Header: title left, controls right */}
       <div style={styles.headerRow}>
-        <h4 style={styles.title}>Sample Day — Court Timeline</h4>
+        <h3 style={styles.title}>Sample Day — Court Timeline</h3>
         <div style={styles.controls}>
           <button
             style={{
-              ...styles.iconBtn,
-              ...(anim.phase === 'playing' ? styles.iconBtnDisabled : {}),
+              ...styles.primaryBtn,
+              ...(anim.phase === 'playing' ? styles.primaryBtnDisabled : {}),
             }}
             onClick={anim.play}
             disabled={anim.phase === 'playing'}
@@ -291,8 +298,8 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
           </button>
           <button
             style={{
-              ...styles.iconBtn,
-              ...(anim.phase !== 'playing' ? styles.iconBtnDisabled : {}),
+              ...styles.primaryBtn,
+              ...(anim.phase !== 'playing' ? styles.primaryBtnDisabled : {}),
             }}
             onClick={anim.pause}
             disabled={anim.phase !== 'playing'}
@@ -300,13 +307,26 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
           >
             {'\u23F8'}
           </button>
-          <button style={styles.iconBtn} onClick={anim.reset} title="Reset">
+
+          <button
+            style={{
+              ...styles.primaryBtn,
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              color: colors.text,
+            }}
+            onClick={anim.reset}
+            title="Reset"
+          >
             {'\u21BA'}
           </button>
           <button
             style={{
-              ...styles.iconBtn,
-              ...(atLastStep ? styles.iconBtnDisabled : {}),
+              ...styles.primaryBtn,
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              color: colors.text,
+              ...(atLastStep ? styles.primaryBtnDisabled : {}),
             }}
             onClick={anim.stepForward}
             disabled={atLastStep}
@@ -460,6 +480,12 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
               <span>Gap time reduced by {gapReduction} min</span>
             </>
           )}
+          {strandedCountDelta > 0 && (
+            <>
+              <span style={styles.dot}>{'\u00B7'}</span>
+              <span>{strandedCountDelta} fewer stranded gap{strandedCountDelta !== 1 ? 's' : ''} ({strandedMinDelta} min saved)</span>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -521,6 +547,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: colors.text,
     margin: 0,
     whiteSpace: 'nowrap' as const,
+    letterSpacing: '-0.3px',
   },
   subtitle: {
     fontSize: fonts.sizeSmall,
@@ -535,24 +562,24 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap' as const,
     justifyContent: 'flex-end',
   },
-  iconBtn: {
+  primaryBtn: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '32px',
-    height: '32px',
+    width: '44px',
+    height: '44px',
     padding: 0,
-    border: `1px solid ${colors.border}`,
-    borderRadius: borderRadius.sm,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    fontSize: '14px',
+    border: `1px solid ${colors.primary}`,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.primary,
+    color: '#ffffff',
+    fontSize: '20px',
     cursor: 'pointer',
     fontFamily: fonts.family,
     transition: 'all 0.15s',
     lineHeight: 1,
   },
-  iconBtnDisabled: {
+  primaryBtnDisabled: {
     opacity: 0.3,
     cursor: 'not-allowed',
   },

@@ -13,6 +13,7 @@ export interface UseCalculatorReturn {
   setLockedPercent: (v: number) => void;
   setPeriod: (v: CalculatorInputs['period']) => void;
   setInputs: (partial: Partial<CalculatorInputs>) => void;
+  resetInputs: () => void;
 }
 
 export function useCalculator(
@@ -49,6 +50,10 @@ export function useCalculator(
     setInputsState((prev) => ({ ...prev, ...partial }));
   };
 
+  const resetInputs = () => {
+    setInputsState({ ...DEFAULT_INPUTS, ...initialInputs });
+  };
+
   return {
     inputs,
     results,
@@ -58,5 +63,6 @@ export function useCalculator(
     setLockedPercent: (v) => setInputs({ lockedPercent: v }),
     setPeriod: (v) => setInputs({ period: v }),
     setInputs,
+    resetInputs,
   };
 }
