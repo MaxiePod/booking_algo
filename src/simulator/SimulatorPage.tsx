@@ -4,13 +4,29 @@ import { SimInputPanel } from './components/SimInputPanel';
 import { SimResultsPanel } from './components/SimResultsPanel';
 import { AnimatedTimeline } from './components/AnimatedTimeline';
 import { OccupancyHeatmap } from './components/OccupancyHeatmap';
+import { SimulatorDisclaimerModal } from './components/SimulatorDisclaimerModal';
 import { colors, fonts, spacing } from '../shared/design-tokens';
+
+const DISCLAIMER_STORAGE_KEY = 'podplay-simulator-disclaimer-acknowledged';
 
 export const SimulatorPage: React.FC = () => {
   const { inputs, results, running, maxReservationsPerDay, setInputs, resetInputs, run } = useSimulator();
 
+  const [showDisclaimer, setShowDisclaimer] = React.useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !sessionStorage.getItem(DISCLAIMER_STORAGE_KEY);
+  });
+
+  const handleDisclaimerAcknowledge = () => {
+    sessionStorage.setItem(DISCLAIMER_STORAGE_KEY, 'true');
+    setShowDisclaimer(false);
+  };
+
   return (
     <div style={styles.wrapper}>
+      {showDisclaimer && (
+        <SimulatorDisclaimerModal onAcknowledge={handleDisclaimerAcknowledge} />
+      )}
       <div style={styles.header}>
         <h2 style={styles.title}>Algorithm Simulator</h2>
         <p style={styles.subtitle}>

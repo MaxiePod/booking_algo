@@ -78,6 +78,15 @@ export function assignCourts(
       .filter((s) => s !== null) as PlacementScore[];
 
     if (scores.length === 0) {
+      // No single court can fit this reservation
+      if (config.allowSplitting) {
+        // Try to split across multiple courts
+        const splitResult = trySplitReservation(res, assignments, config);
+        if (splitResult.length > 0) {
+          assignments.push(...splitResult);
+          continue;
+        }
+      }
       unassigned.push(res);
       continue;
     }
@@ -105,6 +114,105 @@ export function assignCourts(
     totalGapMinutes: totalGapMinutes(gaps),
     fragmentationScore: fragmentationScore(gaps, config.courts, config.schedule),
   };
+}
+
+/**
+ * Try to split a reservation across multiple courts when it can't fit on a single court.
+ * Uses a greedy approach that minimizes the number of splits.
+ * Returns the split assignments if successful, or empty array if the reservation cannot be placed.
+ */
+function trySplitReservation(
+  reservation: Reservation,
+  currentAssignments: AssignedReservation[],
+  config: AssignerConfig
+): AssignedReservation[] {
+  const { start, end } = reservation.slot;
+  const minSlot = config.schedule.minSlotDuration;
+
+  // Collect all free slots across all courts that overlap with the reservation
+  type FreeSlotInfo = { courtId: CourtId; start: number; end: number };
+  const allFreeSlots: FreeSlotInfo[] = [];
+
+  for (const court of config.courts) {
+    const freeSlots = findFreeSlots(
+      currentAssignments,
+      court.id,
+      config.schedule.openTime,
+      config.schedule.closeTime
+    );
+    for (const fs of freeSlots) {
+      // Only consider slots that overlap with the reservation
+      const overlapStart = Math.max(fs.start, start);
+      const overlapEnd = Math.min(fs.end, end);
+      if (overlapEnd > overlapStart && overlapEnd - overlapStart >= minSlot) {
+        allFreeSlots.push({
+          courtId: court.id,
+          start: overlapStart,
+          end: overlapEnd,
+        });
+      }
+    }
+  }
+
+  if (allFreeSlots.length === 0) return [];
+
+  // Sort by largest coverage first (greedy: maximize coverage per split)
+  allFreeSlots.sort((a, b) => (b.end - b.start) - (a.end - a.start));
+
+  // Greedy covering: pick slots to cover [start, end]
+  const result: AssignedReservation[] = [];
+  let currentTime = start;
+
+  while (currentTime < end) {
+    // Find the best slot that starts at or before currentTime and extends furthest
+    let bestSlot: FreeSlotInfo | null = null;
+    let bestEnd = currentTime;
+
+    for (const slot of allFreeSlots) {
+      if (slot.start <= currentTime && slot.end > bestEnd) {
+        bestSlot = slot;
+        bestEnd = slot.end;
+      }
+    }
+
+    if (!bestSlot || bestEnd <= currentTime) {
+      // Can't cover the remaining time
+      return [];
+    }
+
+    // Create a split assignment for this segment
+    const segmentStart = currentTime;
+    const segmentEnd = Math.min(bestEnd, end);
+
+    result.push({
+      ...reservation,
+      slot: { start: segmentStart, end: segmentEnd },
+      courtId: bestSlot.courtId,
+      isSplit: true,
+    });
+
+    // Remove the used portion from available slots
+    const usedIdx = allFreeSlots.findIndex(
+      (s) => s.courtId === bestSlot!.courtId && s.start === bestSlot!.start && s.end === bestSlot!.end
+    );
+    if (usedIdx >= 0) {
+      const used = allFreeSlots[usedIdx];
+      allFreeSlots.splice(usedIdx, 1);
+      // Add back any remaining portions
+      if (used.start < segmentStart) {
+        allFreeSlots.push({ courtId: used.courtId, start: used.start, end: segmentStart });
+      }
+      if (used.end > segmentEnd) {
+        allFreeSlots.push({ courtId: used.courtId, start: segmentEnd, end: used.end });
+      }
+      // Re-sort
+      allFreeSlots.sort((a, b) => (b.end - b.start) - (a.end - a.start));
+    }
+
+    currentTime = segmentEnd;
+  }
+
+  return result;
 }
 
 /**

@@ -59,6 +59,10 @@ export interface SimulatorInputs {
   lockPremiumPerHour: number;
   varianceCV: number;
   overflowMultiplier: number;
+  /** When true, allocates more demand pressure to peak hours (5pm-9pm) */
+  modelPeakTimes: boolean;
+  /** When true, reservations may be split across multiple courts as a last resort */
+  allowSplitting: boolean;
 }
 
 export interface IterationResult {
@@ -67,6 +71,10 @@ export interface IterationResult {
   overflowGenerated: number;
   overflowPlacedSmart: number;
   overflowPlacedNaive: number;
+  /** Number of reservations that were split across courts (smart) */
+  smartSplitCount: number;
+  /** Number of reservations that were split across courts (naive) */
+  naiveSplitCount: number;
 }
 
 export interface GapBreakdown {
@@ -93,6 +101,17 @@ export interface SimulatorResults {
   overflowPlacedNaive: number;
   smartGaps: GapBreakdown;
   naiveGaps: GapBreakdown;
+  /** Average number of split reservations per day (smart algorithm) */
+  avgSmartSplits: number;
+  /** Average number of split reservations per day (naive algorithm) */
+  avgNaiveSplits: number;
+  /** 4-way revenue comparison for splitting analysis */
+  splitting: {
+    smartNoSplit: { revenue: number; splits: number; util: number };
+    smartWithSplit: { revenue: number; splits: number; util: number };
+    naiveNoSplit: { revenue: number; splits: number; util: number };
+    naiveWithSplit: { revenue: number; splits: number; util: number };
+  };
   /** A sample day's raw results for timeline visualization */
   sampleDay: {
     smart: AssignmentResult;
@@ -110,6 +129,10 @@ export interface RunStats {
   avgUnassigned: number;
 }
 
+/** Peak hours: 5pm-9pm (17:00-21:00) — typical after-work rush for sports facilities */
+export const PEAK_HOUR_START = 17;
+export const PEAK_HOUR_END = 21;
+
 export const DEFAULT_SIM_INPUTS: SimulatorInputs = {
   numCourts: 6,
   openHour: 8,
@@ -124,4 +147,6 @@ export const DEFAULT_SIM_INPUTS: SimulatorInputs = {
   lockPremiumPerHour: 10,
   varianceCV: 15,
   overflowMultiplier: 1.0,
+  modelPeakTimes: false,
+  allowSplitting: false,
 };

@@ -9,6 +9,7 @@ import { assignCourts } from '../algorithm/court-assigner';
 import { naiveAssignCourts } from '../algorithm/naive-assigner';
 import { slotDuration } from '../algorithm/utils';
 import type { SimulatorInputs, SimulatorResults, RunStats, DurationBinPcts, IterationResult, GapBreakdown } from './types';
+import { PEAK_HOUR_START, PEAK_HOUR_END } from './types';
 
 function createRng(seed: number): () => number {
   let s = seed | 0;
@@ -248,6 +249,13 @@ function generateReservations(
  * Generate overflow reservations — pent-up demand that targets congested time slots.
  * These represent customers who would book but can't because courts are full.
  * All overflow is flexible (walk-in/opportunistic).
+ *
+ * The effective multiplier scales exponentially with target utilization:
+ *   effective = baseMultiplier * e^(2 * (targetUtil - 0.5))
+ * This models the reality that high-utilization facilities have disproportionately
+ * more pent-up demand due to frequent turn-aways.
+ *
+ * When modelPeakTimes is true, pressure is boosted 2x during peak hours (5pm-9pm).
  */
 function generateOverflow(
   baseReservations: Reservation[],
@@ -257,6 +265,8 @@ function generateOverflow(
   minReservationMin: number,
   durationBinPcts: DurationBinPcts,
   overflowMultiplier: number,
+  targetUtilization: number,
+  modelPeakTimes: boolean,
   rng: () => number
 ): Reservation[] {
   if (overflowMultiplier <= 0) return [];
@@ -265,6 +275,10 @@ function generateOverflow(
   const closeTime = schedule.closeTime;
   const operatingMinutes = closeTime - openTime;
   const numSlots = Math.ceil(operatingMinutes / slotBlockMin);
+
+  // Convert peak hours to minutes from midnight for comparison
+  const peakStartMin = PEAK_HOUR_START * 60;
+  const peakEndMin = PEAK_HOUR_END * 60;
 
   // Step 1: Build per-slot occupancy from base reservations
   const slotOccupancy = new Float64Array(numSlots);
@@ -277,22 +291,37 @@ function generateOverflow(
   }
 
   // Step 2: Compute pressure per slot: max(0, (f - 0.5))² / 0.25
+  // Apply peak time boost if enabled
   const pressure = new Float64Array(numSlots);
   let totalPressure = 0;
   for (let i = 0; i < numSlots; i++) {
     const f = slotOccupancy[i] / numCourts;
-    const p = f > 0.5 ? ((f - 0.5) * (f - 0.5)) / 0.25 : 0;
+    let p = f > 0.5 ? ((f - 0.5) * (f - 0.5)) / 0.25 : 0;
+
+    // Apply 2x pressure boost during peak hours if enabled
+    if (modelPeakTimes && p > 0) {
+      const slotStartMin = openTime + i * slotBlockMin;
+      if (slotStartMin >= peakStartMin && slotStartMin < peakEndMin) {
+        p *= 2;
+      }
+    }
+
     pressure[i] = p;
     totalPressure += p;
   }
 
   if (totalPressure === 0) return [];
 
-  // Step 3: Overflow count
-  const overflowCount = Math.round(totalPressure * overflowMultiplier);
+  // Step 3: Apply exponential scaling based on target utilization
+  // e^(2*(u-0.5)) gives: ~0.37 at 0%, 1.0 at 50%, ~2.72 at 100%
+  const utilizationScale = Math.exp(2 * (targetUtilization - 0.5));
+  const effectiveMultiplier = overflowMultiplier * utilizationScale;
+
+  // Step 4: Overflow count using effective multiplier
+  const overflowCount = Math.round(totalPressure * effectiveMultiplier);
   if (overflowCount === 0) return [];
 
-  // Step 4: Build CDF from pressure for weighted start-time sampling
+  // Step 5: Build CDF from pressure for weighted start-time sampling
   const cdf = new Float64Array(numSlots);
   cdf[0] = pressure[0];
   for (let i = 1; i < numSlots; i++) {
@@ -306,7 +335,7 @@ function generateOverflow(
     }
   }
 
-  // Step 5: Generate overflow reservations
+  // Step 6: Generate overflow reservations
   const overflow: Reservation[] = [];
   for (let j = 0; j < overflowCount; j++) {
     // Sample start from CDF (binary search)
@@ -386,13 +415,27 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
     minSlotDuration: inputs.minReservationMin,
   };
 
-  const config: AssignerConfig = { courts, schedule };
+  const config: AssignerConfig = { courts, schedule, allowSplitting: inputs.allowSplitting };
+  const configNoSplit: AssignerConfig = { courts, schedule, allowSplitting: false };
   const totalMinutes = inputs.numCourts * (schedule.closeTime - schedule.openTime);
   const lockedFraction = inputs.lockedPercent / 100;
   const baseSeed = 42;
 
+  // Compute target utilization for exponential demand scaling
+  const operatingMinutes = schedule.closeTime - schedule.openTime;
+  const avgDuration =
+    (inputs.durationBinPcts[0] / 100) * inputs.minReservationMin +
+    (inputs.durationBinPcts[1] / 100) * (inputs.minReservationMin + inputs.slotBlockMin) +
+    (inputs.durationBinPcts[2] / 100) * (inputs.minReservationMin + 2 * inputs.slotBlockMin) +
+    (inputs.durationBinPcts[3] / 100) * ((inputs.minReservationMin + 2 * inputs.slotBlockMin + Math.min(operatingMinutes, 240)) / 2);
+  const maxReservations = avgDuration > 0 ? Math.floor((inputs.numCourts * operatingMinutes) / avgDuration) : 1;
+  const targetUtilization = maxReservations > 0 ? inputs.reservationsPerDay / maxReservations : 0;
+
   const smartResults: AssignmentResult[] = [];
   const naiveResults: AssignmentResult[] = [];
+  // For 4-way splitting comparison
+  const smartNoSplitResults: AssignmentResult[] = [];
+  const naiveNoSplitResults: AssignmentResult[] = [];
   const iterationResults: IterationResult[] = [];
 
   const cv = inputs.varianceCV / 100; // convert percentage to fraction
@@ -427,6 +470,8 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
       inputs.minReservationMin,
       inputs.durationBinPcts,
       inputs.overflowMultiplier,
+      targetUtilization,
+      inputs.modelPeakTimes,
       rng
     );
 
@@ -439,10 +484,28 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
     const naiveResult = naiveAssignCourts(reservations, config, naiveRng);
     naiveResults.push(naiveResult);
 
+    // Run no-split versions for 4-way comparison when splitting is enabled
+    if (inputs.allowSplitting) {
+      const smartNoSplitResult = assignCourts(reservations, configNoSplit);
+      smartNoSplitResults.push(smartNoSplitResult);
+
+      const naiveNoSplitRng = createRng(baseSeed + i * 1000 + 600);
+      const naiveNoSplitResult = naiveAssignCourts(reservations, configNoSplit, naiveNoSplitRng);
+      naiveNoSplitResults.push(naiveNoSplitResult);
+    }
+
     // Count overflow placements by checking which overflow IDs got assigned
     const overflowIds = new Set(overflow.map((r) => r.id));
     const overflowPlacedSmart = smartResult.assignments.filter((a) => overflowIds.has(a.id)).length;
     const overflowPlacedNaive = naiveResult.assignments.filter((a) => overflowIds.has(a.id)).length;
+
+    // Count split reservations (unique reservation IDs that have isSplit=true)
+    const smartSplitIds = new Set(
+      smartResult.assignments.filter((a) => a.isSplit).map((a) => a.id)
+    );
+    const naiveSplitIds = new Set(
+      naiveResult.assignments.filter((a) => a.isSplit).map((a) => a.id)
+    );
 
     iterationResults.push({
       smartUtil: utilization(smartResult, totalMinutes),
@@ -450,6 +513,8 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
       overflowGenerated: overflow.length,
       overflowPlacedSmart,
       overflowPlacedNaive,
+      smartSplitCount: smartSplitIds.size,
+      naiveSplitCount: naiveSplitIds.size,
     });
   }
 
@@ -487,6 +552,41 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
   const savingsPercent =
     revenueNaivePerDay > 0 ? (savingsPerDay / revenueNaivePerDay) * 100 : 0;
 
+  // Split metrics
+  const avgSmartSplits = avg(iterationResults.map((r) => r.smartSplitCount));
+  const avgNaiveSplits = avg(iterationResults.map((r) => r.naiveSplitCount));
+
+  // 4-way splitting comparison
+  const smartNoSplitUtil = inputs.allowSplitting && smartNoSplitResults.length > 0
+    ? avg(smartNoSplitResults.map((r) => utilization(r, totalMinutes)))
+    : smart.avgUtil;
+  const naiveNoSplitUtil = inputs.allowSplitting && naiveNoSplitResults.length > 0
+    ? avg(naiveNoSplitResults.map((r) => utilization(r, totalMinutes)))
+    : naive.avgUtil;
+
+  const splitting = {
+    smartNoSplit: {
+      revenue: totalCourtMinutes * smartNoSplitUtil * pricePerMinute,
+      splits: 0,
+      util: smartNoSplitUtil,
+    },
+    smartWithSplit: {
+      revenue: revenueSmartPerDay,
+      splits: avgSmartSplits,
+      util: smart.avgUtil,
+    },
+    naiveNoSplit: {
+      revenue: totalCourtMinutes * naiveNoSplitUtil * pricePerMinute,
+      splits: 0,
+      util: naiveNoSplitUtil,
+    },
+    naiveWithSplit: {
+      revenue: revenueNaivePerDay,
+      splits: avgNaiveSplits,
+      util: naive.avgUtil,
+    },
+  };
+
   // Lock premium: average locked court-hours per day × premium rate
   const avgLockedMinutes = avg(
     smartResults.map((r) =>
@@ -517,6 +617,9 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
     overflowPlacedNaive: avg(iterationResults.map((r) => r.overflowPlacedNaive)),
     smartGaps,
     naiveGaps,
+    avgSmartSplits,
+    avgNaiveSplits,
+    splitting,
     sampleDay: {
       smart: smartResults[bestSampleIdx],
       naive: naiveResults[bestSampleIdx],

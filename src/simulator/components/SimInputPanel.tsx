@@ -4,7 +4,7 @@ import { SliderInput } from '../../calculator/components/SliderInput';
 import { InfoTooltip } from '../../shared/InfoTooltip';
 import { colors, fonts, spacing, borderRadius } from '../../shared/design-tokens';
 import type { SimulatorInputs, DurationBinPcts } from '../types';
-import { computeDurationBins, DEFAULT_SIM_INPUTS } from '../types';
+import { computeDurationBins, DEFAULT_SIM_INPUTS, PEAK_HOUR_START, PEAK_HOUR_END } from '../types';
 
 interface SimInputPanelProps {
   inputs: SimulatorInputs;
@@ -64,6 +64,38 @@ const VarianceTooltip: React.FC<{ mean: number }> = ({ mean }) => {
 
 /** Amber color for default-value triangle marks */
 const DEFAULT_MARK_COLOR = '#f59e0b';
+
+/** Scientific explanation tooltip for Demand Pressure */
+const DemandPressureTooltip: React.FC<{ utilization: number }> = ({ utilization }) => {
+  const utilizationScale = Math.exp(2 * (utilization - 0.5));
+  const formatHour = (h: number) => h > 12 ? `${h - 12}pm` : h === 12 ? '12pm' : `${h}am`;
+
+  return (
+    <span style={{ display: 'block' }}>
+      <span style={{ display: 'block', marginBottom: 8, lineHeight: 1.5 }}>
+        Models <strong style={{ color: '#e5e7eb' }}>pent-up demand</strong> — customers who would book if courts were available but get turned away.
+      </span>
+      <span style={{ display: 'block', marginBottom: 8, lineHeight: 1.5 }}>
+        <strong style={{ color: '#e5e7eb' }}>How it works:</strong> The multiplier scales <em>exponentially</em> with your target utilization. At higher capacity, more customers are turned away, creating more latent demand.
+      </span>
+      <span style={{ display: 'block', marginBottom: 8, lineHeight: 1.5, fontFamily: 'monospace', fontSize: '11px', backgroundColor: 'rgba(255,255,255,0.05)', padding: '6px 8px', borderRadius: '4px' }}>
+        effective = multiplier × e<sup>2×(util−0.5)</sup>
+        <br />
+        At {Math.round(utilization * 100)}% util → ×{utilizationScale.toFixed(2)} scaling
+      </span>
+      <span style={{ display: 'block', marginBottom: 8, lineHeight: 1.5 }}>
+        <strong style={{ color: '#e5e7eb' }}>Examples:</strong>
+        <br />• <strong>0</strong> = Off (no overflow modeled)
+        <br />• <strong>1.0</strong> = Moderate (1 extra booking attempt per pressure unit)
+        <br />• <strong>2.0</strong> = Busy (2× the overflow, typical for popular facilities)
+        <br />• <strong>3.0</strong> = High demand (long waitlists, frequent turn-aways)
+      </span>
+      <span style={{ display: 'block', color: '#9ca3af', fontSize: '11px' }}>
+        Peak hours: {formatHour(PEAK_HOUR_START)}–{formatHour(PEAK_HOUR_END)}
+      </span>
+    </span>
+  );
+};
 
 const DurationBinSliders: React.FC<{
   bins: ReturnType<typeof computeDurationBins>;
@@ -315,6 +347,51 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
             onChange={(pcts) => onInputsChange({ durationBinPcts: pcts })}
             blinking={blinking}
           />
+
+          {/* Checkboxes for advanced options */}
+          <div style={styles.checkboxGroup}>
+            <div style={styles.checkboxRow}>
+              <label style={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={inputs.modelPeakTimes}
+                  onChange={(e) => onInputsChange({ modelPeakTimes: e.target.checked })}
+                  style={styles.checkbox}
+                />
+                <span>Model peak vs. off-peak demand</span>
+              </label>
+              <InfoTooltip
+                text={
+                  <span style={{ display: 'block', lineHeight: 1.5 }}>
+                    When enabled, demand pressure is <strong style={{ color: '#e5e7eb' }}>doubled during peak hours</strong> ({PEAK_HOUR_START > 12 ? PEAK_HOUR_START - 12 : PEAK_HOUR_START}pm–{PEAK_HOUR_END > 12 ? PEAK_HOUR_END - 12 : PEAK_HOUR_END}pm), reflecting real-world patterns where after-work hours see the highest competition for courts.
+                  </span>
+                }
+              />
+            </div>
+
+            <div style={styles.checkboxRow}>
+              <label style={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={inputs.allowSplitting}
+                  onChange={(e) => onInputsChange({ allowSplitting: e.target.checked })}
+                  style={styles.checkbox}
+                />
+                <span>Allow splitting of reservations</span>
+              </label>
+              <InfoTooltip
+                text={
+                  <span style={{ display: 'block', lineHeight: 1.5 }}>
+                    When enabled, reservations may be <strong style={{ color: '#e5e7eb' }}>split across multiple courts</strong> (e.g., first hour on Court 1, second hour on Court 2).
+                    <br /><br />
+                    The smart algorithm <strong style={{ color: '#e5e7eb' }}>minimizes splits</strong> — only splitting when necessary to place a reservation. Compare split counts and revenue to see the tradeoff.
+                    <br /><br />
+                    <em style={{ color: '#9ca3af' }}>Note: Splitting is undesirable for customer experience but can improve utilization.</em>
+                  </span>
+                }
+              />
+            </div>
+          </div>
         </div>
 
         {/* ── Right column: all sliders ── */}
@@ -362,7 +439,15 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
             max={3}
             step={0.5}
             onChange={(v) => onInputsChange({ overflowMultiplier: v })}
-            labelSuffix={<InfoTooltip text="Models pent-up demand: customers who would book if courts were available. At busy times, some people are turned away — this estimates how many. 0 = off, 1 = moderate, 3 = heavy traffic." />}
+            labelSuffix={
+              <InfoTooltip
+                text={
+                  <DemandPressureTooltip
+                    utilization={maxReservationsPerDay > 0 ? inputs.reservationsPerDay / maxReservationsPerDay : 0}
+                  />
+                }
+              />
+            }
             defaultValue={DEFAULT_SIM_INPUTS.overflowMultiplier}
             blinking={blinking}
             renderValue={(v) => v === 0 ? 'Off' : `${v.toFixed(1)}×`}
@@ -535,5 +620,29 @@ const styles: Record<string, React.CSSProperties> = {
   runButtonDisabled: {
     backgroundColor: colors.textMuted,
     cursor: 'not-allowed',
+  },
+  checkboxGroup: {
+    marginTop: spacing.md,
+  },
+  checkboxRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  checkboxLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: spacing.sm,
+    fontSize: fonts.sizeBase,
+    fontWeight: fonts.weightMedium,
+    color: colors.textSecondary,
+    cursor: 'pointer',
+  },
+  checkbox: {
+    width: '16px',
+    height: '16px',
+    accentColor: colors.primary,
+    cursor: 'pointer',
   },
 };

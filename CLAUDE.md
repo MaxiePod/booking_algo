@@ -6,61 +6,90 @@ Court booking simulator comparing a "smart" algorithm (First-Fit-Decreasing with
 ## Key Architecture
 
 ### Algorithm (`src/algorithm/`)
-- `court-assigner.ts` — Smart assigner: locked-first, then flexible sorted by start time. Scores courts (adjacency, contiguity, gap penalty, fill bonus). Post-assignment compaction pass.
-- `naive-assigner.ts` — Naive baseline: locked-first, then flexible with random court ordering. No scoring/compaction.
+- `court-assigner.ts` — Smart assigner: locked-first, then flexible sorted by start time. Scores courts (adjacency, contiguity, gap penalty, fill bonus). Post-assignment compaction pass. **Now supports splitting** via `trySplitReservation()`.
+- `naive-assigner.ts` — Naive baseline: locked-first, then flexible with random court ordering. No scoring/compaction. **Now supports splitting** via `naiveTrySplit()`.
 - `gap-analyzer.ts` — Computes gaps and fragmentation scores.
-- `types.ts` — Core types: `Reservation`, `Court`, `AssignmentResult`, `AssignerConfig`, etc.
+- `types.ts` — Core types: `Reservation`, `Court`, `AssignmentResult`, `AssignerConfig` (now includes `allowSplitting`), `AssignedReservation` (now includes `isSplit` flag).
 - `utils.ts` — `findFreeSlots`, `slotsOverlap`, `slotDuration`, etc.
 
 ### Simulator (`src/simulator/`)
-- `run-simulation.ts` — Core simulation loop: generates reservations, runs both assigners across N iterations, computes aggregate stats. Contains the concurrency tracker and reservation generator.
-- `types.ts` — `SimulatorInputs`, `SimulatorResults`, `RunStats`, `DurationBinPcts`, `DEFAULT_SIM_INPUTS`, `computeAvgDuration`, `computeDurationBins`.
+- `run-simulation.ts` — Core simulation loop: generates reservations, runs both assigners across N iterations, computes aggregate stats. Contains the concurrency tracker, reservation generator, and overflow (pent-up demand) generator.
+- `types.ts` — `SimulatorInputs` (now includes `modelPeakTimes`, `allowSplitting`), `SimulatorResults` (now includes `splitting` 4-way comparison), `PEAK_HOUR_START/END` constants.
 - `hooks/useSimulator.ts` — React hook: manages inputs state, computes `maxReservationsPerDay` (based on avg duration), runs simulation on setTimeout.
-- `components/SimInputPanel.tsx` — Input controls UI (courts, hours, price, utilization slider, duration bins, etc.).
+- `components/SimInputPanel.tsx` — Input controls UI with checkboxes for peak times and splitting.
+- `components/SimResultsPanel.tsx` — Results display with 4-way splitting comparison table and Day/Month/Year toggle.
+- `components/SimulatorDisclaimerModal.tsx` — Disclaimer popup on first visit to Simulator tab (uses sessionStorage, shows once per session).
 
 ### Calculator (`src/calculator/`)
-- `components/NumberInput.tsx` — Compact number input with `prefix`/`unit` adornment support.
-- `components/SliderInput.tsx` — Slider with `renderValue` prop for custom display.
+- `components/NumberInput.tsx` — Compact number input with `prefix`/`unit` adornment support. Browser spinners hidden via injected CSS.
+- `components/SliderInput.tsx` — Slider with `renderValue` prop for custom display, default-value triangle markers.
 
-## Current State (as of Jan 2026)
+## Current State (as of Feb 2026)
 
 ### What Works
 - `npx tsc --noEmit` passes
-- `npx vitest run` — all 75 tests pass
-- Simulation produces accurate utilization with CV=0%:
-  - 0% locked: Smart 55.9%, Naive 55.9% (target 56%)
-  - 11% locked: Smart 55.8%, Naive 55.5% (target 56%)
+- `npx vitest run` — all 82 tests pass
+- Dev server: `npx vite dev` → http://localhost:5173/booking_algo/
+
+### Features Implemented This Session
+
+1. **Simulator Disclaimer Modal** (`SimulatorDisclaimerModal.tsx`)
+   - Shows once per browser session (sessionStorage)
+   - Header: "Attention: You Are Now Entering a Simulation"
+   - Explains simulation is for directionality, not precision
+   - "I Understand" button to dismiss
+
+2. **NumberInput Improvements**
+   - Hidden browser spinners (Chrome up/down arrows) via injected CSS class `podplay-number-input`
+   - Centered number display, tightened box with `inline-flex` + `width: fit-content`
+
+3. **Demand Pressure Enhancements**
+   - **Exponential scaling** based on target utilization: `effective = multiplier × e^(2×(util−0.5))`
+   - At 50% util → 1.0× scaling; at 80% util → ~1.8×; at 100% → ~2.7×
+   - Scientific tooltip with formula, examples, and peak hours info
+   - **Peak times checkbox**: doubles demand pressure during 5pm-9pm when enabled
+
+4. **Reservation Splitting**
+   - New checkbox: "Allow splitting of reservations"
+   - Smart algorithm minimizes splits (only splits when reservation can't fit on single court)
+   - Naive algorithm splits randomly
+   - **4-way comparison table** in results:
+     - Naive (no split) | Naive (with split) | Smart (no split) | Smart (with split)
+     - Shows Revenue, Splits, Utilization for each
+   - **Time period toggle**: Day / Month / Year for all values
+   - Summary: Smart vs Naive difference, splitting benefit, splits avoided
+
+### Important Behavior Notes (Learned This Session)
+
+1. **"Additional bookings" with splitting is CORRECT**:
+   - Same reservations are generated regardless of splitting setting
+   - Without splitting: Some reservations can't fit → unassigned
+   - With splitting: Those SAME reservations can now be placed via splitting
+   - More placed = higher utilization = higher revenue
+   - **No new demand is generated** — just more gets placed
+
+2. **100% utilization still shows gaps — EXPECTED**:
+   - With default duration mix (60/90/120/150+ min), durations don't tile perfectly
+   - At 100% slider, actual utilization is ~93%
+   - To get true 100%: set duration bins to [100, 0, 0, 0] (all same duration)
+
+3. **Splitting minimization**:
+   - Smart uses greedy coverage (largest free slot first) → minimizes splits
+   - Naive uses random coverage → more splits on average
+   - Test results: Smart 0.4 splits/day vs Naive 0.4 splits/day with mixed durations at 40 res/day
 
 ### Known Behaviors / Open Items
 
-1. **Naive 0.5pp gap with locked reservations (CV=0, 11% locked)**: The naive assigner's random court ordering causes ~0.2 assignment failures per day. This is by design — it demonstrates the smart algorithm's value. The smart assigner achieves 55.8% (0.2pp from target).
+1. **CV > 0% reduces average utilization below target**: Jensen's inequality — demand variance + capacity ceiling = asymmetric utilization loss. This is correct behavior.
 
-2. **CV > 0% reduces average utilization below target**: With CV=15% (default), average utilization is ~52.6% vs 56% target. This is Jensen's inequality — demand variance + capacity ceiling = asymmetric utilization loss. High-demand days lose reservations to capacity limits; low-demand days can't compensate. This is correct simulation behavior but may confuse users expecting the slider value to match output. Potential fix: adjust reservation count upward when CV>0 to compensate, or improve the UI tooltip to explain.
+2. **Peak hours**: Defined as 5pm-9pm (`PEAK_HOUR_START=17`, `PEAK_HOUR_END=21`) in `src/simulator/types.ts`.
 
-3. **User reported seeing "naive 54.9% utilization"**: Closest match is CV=5% (naive 54.4%) or CV=0% with 11% locked (naive 55.5%). The exact scenario wasn't pinpointed.
-
-### Recent Changes (this session)
-
-All in `src/simulator/run-simulation.ts`:
-
-1. **Enhanced concurrency tracker** — `canFit` now checks that flexible reservations have at least one court entirely free of locked reservations for their full span. Prevents unassignable precoloring edge cases.
-
-2. **Systematic fallback (Phase 2)** — After 40 random start-time retries fail, scans ALL valid start times from a random offset. Guarantees placement if any valid slot exists.
-
-3. **Retry-until-placed loop** — Generation retries with new random parameters (duration, locked status) until target count is placed, up to 3x attempts. Prevents high-demand days from under-generating.
-
-4. **Naive assigner left as locked-first** — Tried interleaving locked+flexible by start time but it made things worse (flexible reservations took courts needed by later locked ones). Reverted to locked-first approach.
-
-### Approaches Tried and Discarded
-- **Per-court occupancy tracker** (replacing concurrency tracker): Committed to specific court assignments during generation. Worse packing than concurrency tracker because it fragments capacity.
-- **Load-balanced per-court tracker**: Tried least-loaded-first court ordering. Even worse — spreading evenly is bad for packing density.
-- **Interleaved naive assigner**: Processing all reservations in start-time order (locked + flexible together). Caused flexible to steal courts from later locked reservations.
+3. **Amber triangle markers on sliders**: May not render on some computers due to display scaling or browser differences. They're 8×6px CSS triangles.
 
 ## Useful Commands
 ```bash
 npx tsc --noEmit          # Type check
-npx vitest run            # Run all 75 tests
-npx tsx verify-util.ts    # Run utilization verification script
+npx vitest run            # Run all 82 tests
 npx vite dev              # Start dev server
 ```
 
@@ -70,6 +99,16 @@ npx vite dev              # Start dev server
 - 11% locked, 60 min minimum, 30 min slot blocks
 - Duration bins: [40%, 30%, 20%, 10%] → avg ~93 min
 - CV: 15%, 40 iterations, $80/hr, $10/hr lock premium
+- `modelPeakTimes: false`, `allowSplitting: false`
 
-## File: `verify-util.ts` (temporary)
-Test script that runs simulation at various configurations and prints utilization results. Can be deleted when no longer needed.
+## Files Modified This Session
+- `src/simulator/SimulatorPage.tsx` — Added disclaimer modal integration
+- `src/simulator/components/SimulatorDisclaimerModal.tsx` — NEW: Disclaimer popup
+- `src/simulator/components/SimInputPanel.tsx` — Added checkboxes, enhanced demand pressure tooltip
+- `src/simulator/components/SimResultsPanel.tsx` — Added 4-way splitting comparison, time period toggle
+- `src/simulator/run-simulation.ts` — Added peak time boost, exponential demand scaling, 4-way split tracking
+- `src/simulator/types.ts` — Added `modelPeakTimes`, `allowSplitting`, `PEAK_HOUR_*`, `splitting` comparison object
+- `src/algorithm/court-assigner.ts` — Added `trySplitReservation()` function
+- `src/algorithm/naive-assigner.ts` — Added `naiveTrySplit()` function
+- `src/algorithm/types.ts` — Added `isSplit` to AssignedReservation, `allowSplitting` to AssignerConfig
+- `src/calculator/components/NumberInput.tsx` — Hidden browser spinners, centered number display

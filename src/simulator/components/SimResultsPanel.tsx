@@ -67,7 +67,16 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
     overflowGenerated,
     overflowPlacedSmart,
     overflowPlacedNaive,
+    avgSmartSplits,
+    avgNaiveSplits,
+    splitting,
   } = results;
+
+  const [timePeriod, setTimePeriod] = React.useState<'day' | 'month' | 'year'>('day');
+  const multiplier = timePeriod === 'day' ? 1 : timePeriod === 'month' ? 30 : 365;
+  const periodLabel = timePeriod === 'day' ? '/day' : timePeriod === 'month' ? '/month' : '/year';
+
+  const hasSplits = avgSmartSplits > 0 || avgNaiveSplits > 0;
 
   const totalAdditionalPerDay = savingsPerDay + lockPremiumPerDay;
 
@@ -150,6 +159,88 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
               )}
             </div>
           )}
+
+          {hasSplits && (
+            <div style={splitStyles.card}>
+              <div style={splitStyles.titleRow}>
+                <div style={splitStyles.title}>Splitting Comparison</div>
+                <div style={splitStyles.toggleGroup}>
+                  {(['day', 'month', 'year'] as const).map((p) => (
+                    <button
+                      key={p}
+                      style={{
+                        ...splitStyles.toggleBtn,
+                        ...(timePeriod === p ? splitStyles.toggleBtnActive : {}),
+                      }}
+                      onClick={() => setTimePeriod(p)}
+                    >
+                      {p === 'day' ? 'Day' : p === 'month' ? 'Month' : 'Year'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <table style={splitStyles.table}>
+                <thead>
+                  <tr>
+                    <th style={splitStyles.th}>Scenario</th>
+                    <th style={splitStyles.th}>Revenue{periodLabel}</th>
+                    <th style={splitStyles.th}>Splits{periodLabel}</th>
+                    <th style={splitStyles.th}>Util</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={splitStyles.td}>Naive (no split)</td>
+                    <td style={splitStyles.td}>{formatCurrency(splitting.naiveNoSplit.revenue * multiplier)}</td>
+                    <td style={splitStyles.td}>0</td>
+                    <td style={splitStyles.td}>{(splitting.naiveNoSplit.util * 100).toFixed(1)}%</td>
+                  </tr>
+                  <tr>
+                    <td style={splitStyles.td}>Naive (with split)</td>
+                    <td style={splitStyles.td}>{formatCurrency(splitting.naiveWithSplit.revenue * multiplier)}</td>
+                    <td style={{ ...splitStyles.td, color: colors.danger }}>{(splitting.naiveWithSplit.splits * multiplier).toFixed(0)}</td>
+                    <td style={splitStyles.td}>{(splitting.naiveWithSplit.util * 100).toFixed(1)}%</td>
+                  </tr>
+                  <tr>
+                    <td style={{ ...splitStyles.td, color: colors.primary, fontWeight: '600' }}>Smart (no split)</td>
+                    <td style={{ ...splitStyles.td, color: colors.primary }}>{formatCurrency(splitting.smartNoSplit.revenue * multiplier)}</td>
+                    <td style={splitStyles.td}>0</td>
+                    <td style={splitStyles.td}>{(splitting.smartNoSplit.util * 100).toFixed(1)}%</td>
+                  </tr>
+                  <tr style={{ backgroundColor: 'rgba(56, 151, 240, 0.08)' }}>
+                    <td style={{ ...splitStyles.td, color: colors.primary, fontWeight: '600' }}>Smart (with split)</td>
+                    <td style={{ ...splitStyles.td, color: colors.successDark, fontWeight: '600' }}>{formatCurrency(splitting.smartWithSplit.revenue * multiplier)}</td>
+                    <td style={{ ...splitStyles.td, color: colors.primary }}>{(splitting.smartWithSplit.splits * multiplier).toFixed(0)}</td>
+                    <td style={{ ...splitStyles.td, fontWeight: '600' }}>{(splitting.smartWithSplit.util * 100).toFixed(1)}%</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style={splitStyles.summary}>
+                <div style={splitStyles.summaryRow}>
+                  <span>Smart vs Naive (with split)</span>
+                  <span style={{ color: colors.successDark, fontWeight: '600' }}>
+                    +{formatCurrency((splitting.smartWithSplit.revenue - splitting.naiveWithSplit.revenue) * multiplier)}{periodLabel}
+                  </span>
+                </div>
+                <div style={splitStyles.summaryRow}>
+                  <span>Splitting benefit (Smart)</span>
+                  <span style={{ color: '#f59e0b', fontWeight: '600' }}>
+                    +{formatCurrency((splitting.smartWithSplit.revenue - splitting.smartNoSplit.revenue) * multiplier)}{periodLabel}
+                  </span>
+                </div>
+                {avgNaiveSplits > avgSmartSplits && (
+                  <div style={splitStyles.summaryRow}>
+                    <span>Splits avoided (Smart vs Naive)</span>
+                    <span style={{ color: colors.successDark }}>
+                      {((avgNaiveSplits - avgSmartSplits) * multiplier).toFixed(0)} fewer{periodLabel}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right column: metric cards + stat table */}
@@ -226,6 +317,16 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
                     delta={`+${(overflowPlacedSmart - overflowPlacedNaive).toFixed(1)}`}
                     good={overflowPlacedSmart >= overflowPlacedNaive}
                     tooltip="Average number of overflow (pent-up demand) reservations successfully placed per day. Higher means the algorithm absorbs more walk-in demand."
+                  />
+                )}
+                {hasSplits && (
+                  <StatRow
+                    label="Reservations Split"
+                    smart={avgSmartSplits.toFixed(1)}
+                    naive={avgNaiveSplits.toFixed(1)}
+                    delta={`${(avgSmartSplits - avgNaiveSplits).toFixed(1)}`}
+                    good={avgSmartSplits <= avgNaiveSplits}
+                    tooltip="Average number of reservations that had to be split across multiple courts. Fewer splits = better customer experience. Smart minimizes splits while naive splits randomly."
                   />
                 )}
               </tbody>
@@ -679,6 +780,87 @@ const overflowStyles: Record<string, React.CSSProperties> = {
     fontSize: fonts.sizeSmall,
     color: colors.primary,
     lineHeight: '1.5',
+  },
+};
+
+const splitStyles: Record<string, React.CSSProperties> = {
+  card: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.md,
+    border: `1px solid #f59e0b`,
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    marginBottom: spacing.lg,
+  },
+  titleRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  title: {
+    fontSize: '11px',
+    fontWeight: fonts.weightSemibold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  toggleGroup: {
+    display: 'flex',
+    gap: '2px',
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.sm,
+    padding: '2px',
+    border: `1px solid ${colors.border}`,
+  },
+  toggleBtn: {
+    padding: '4px 8px',
+    border: 'none',
+    borderRadius: '4px',
+    backgroundColor: 'transparent',
+    color: colors.textMuted,
+    fontSize: '11px',
+    fontWeight: fonts.weightMedium,
+    cursor: 'pointer',
+    fontFamily: fonts.family,
+    transition: 'all 0.15s',
+  },
+  toggleBtnActive: {
+    backgroundColor: colors.primary,
+    color: '#ffffff',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse' as const,
+    fontSize: fonts.sizeSmall,
+    marginBottom: spacing.md,
+  },
+  th: {
+    textAlign: 'left' as const,
+    padding: `${spacing.xs} ${spacing.sm}`,
+    borderBottom: `1px solid ${colors.border}`,
+    fontWeight: fonts.weightSemibold,
+    color: colors.textMuted,
+    fontSize: '10px',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+  td: {
+    padding: `${spacing.xs} ${spacing.sm}`,
+    borderBottom: `1px solid ${colors.borderLight}`,
+    fontSize: '12px',
+    color: colors.textSecondary,
+  },
+  summary: {
+    borderTop: `1px solid ${colors.border}`,
+    paddingTop: spacing.sm,
+  },
+  summaryRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '4px 0',
+    fontSize: fonts.sizeSmall,
+    color: colors.textSecondary,
   },
 };
 

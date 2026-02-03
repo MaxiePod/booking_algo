@@ -38,6 +38,8 @@ export interface Reservation {
 /** A reservation that has been assigned to a court */
 export interface AssignedReservation extends Reservation {
   courtId: CourtId;
+  /** True if this reservation was split across multiple courts */
+  isSplit?: boolean;
 }
 
 /** A gap (unbooked interval) on a specific court */
@@ -85,6 +87,8 @@ export interface AssignerConfig {
   courts: Court[];
   schedule: OperatingSchedule;
   weights?: ScoringWeights;
+  /** When true, reservations may be split across multiple courts as a last resort */
+  allowSplitting?: boolean;
 }
 
 /** Tunable weights for the scoring function */
