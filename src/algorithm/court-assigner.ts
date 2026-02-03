@@ -12,6 +12,7 @@ import type {
 import { DEFAULT_WEIGHTS as WEIGHTS } from './types';
 import {
   findFreeSlots,
+  findLargestFreeSlotAcrossCourts,
   getCourtReservations,
   longestContiguousBlock,
   slotDuration,
@@ -91,10 +92,15 @@ export function assignCourts(
       continue;
     }
 
-    // Pick highest total score; break ties by lowest load
+    // Pick highest total score; break ties by load preference
     scores.sort((a, b) => {
       const scoreDiff = b.total - a.total;
       if (Math.abs(scoreDiff) > 0.001) return scoreDiff;
+      // When splitting allowed, prefer MORE loaded courts (consolidates free time)
+      // Otherwise, prefer LESS loaded courts (spreads bookings)
+      if (config.allowSplitting) {
+        return b.loadTiebreaker - a.loadTiebreaker;
+      }
       return a.loadTiebreaker - b.loadTiebreaker;
     });
 
@@ -103,6 +109,11 @@ export function assignCourts(
 
   // Step 6: Post-assignment compaction pass
   compactAssignments(assignments, config, weights);
+
+  // Step 7: Reduce splits by unsplitting where possible
+  if (config.allowSplitting) {
+    reduceSplits(assignments, config);
+  }
 
   // Compute final metrics
   const gaps = analyzeGaps(assignments, config.courts, config.schedule);
@@ -280,10 +291,37 @@ function scorePlacement(
     ? weights.fill
     : 0;
 
+  // Large slot preservation penalty: avoid reducing the largest available free slot
+  // This preserves space for large reservations that might otherwise need splitting
+  let largeSlotPenalty = 0;
+  if (config.allowSplitting) {
+    const courtIds = config.courts.map((c) => c.id);
+    const largestBefore = findLargestFreeSlotAcrossCourts(
+      currentAssignments,
+      courtIds,
+      config.schedule.openTime,
+      config.schedule.closeTime
+    );
+    const largestAfter = findLargestFreeSlotAcrossCourts(
+      testAssignments,
+      courtIds,
+      config.schedule.openTime,
+      config.schedule.closeTime
+    );
+    // If we significantly reduce the largest slot (>30%), apply penalty
+    if (largestBefore > 0) {
+      const reductionRatio = (largestBefore - largestAfter) / largestBefore;
+      if (reductionRatio > 0.3) {
+        // Penalty proportional to how much we reduce the largest slot
+        largeSlotPenalty = -2.0 * reductionRatio;
+      }
+    }
+  }
+
   // Load tiebreaker: prefer less loaded courts
   const loadTiebreaker = totalBookedMinutes(currentAssignments, court.id);
 
-  const total = adjacencyBonus + contiguityBonus + gapPenalty + fillBonus;
+  const total = adjacencyBonus + contiguityBonus + gapPenalty + fillBonus + largeSlotPenalty;
 
   return {
     courtId: court.id,
@@ -353,6 +391,165 @@ function compactAssignments(
         if (newTotalGap < currentTotalGap) {
           assignments[idx] = { ...res, courtId: court.id };
           improved = true;
+          break;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Post-placement split reduction: try to unsplit reservations that were split.
+ * For each split reservation, check if it could fit on a single court
+ * by moving flexible reservations out of the way.
+ */
+function reduceSplits(
+  assignments: AssignedReservation[],
+  config: AssignerConfig
+): void {
+  // Group split parts by original reservation ID
+  const splitGroups = new Map<string, AssignedReservation[]>();
+  for (const a of assignments) {
+    if (a.isSplit) {
+      const existing = splitGroups.get(a.id) || [];
+      existing.push(a);
+      splitGroups.set(a.id, existing);
+    }
+  }
+
+  if (splitGroups.size === 0) return;
+
+  // For each split reservation, try to unsplit it
+  for (const [resId, parts] of splitGroups) {
+    if (parts.length < 2) continue;
+
+    // Find the original time span of the reservation
+    const originalStart = Math.min(...parts.map((p) => p.slot.start));
+    const originalEnd = Math.max(...parts.map((p) => p.slot.end));
+    const originalSlot = { start: originalStart, end: originalEnd };
+
+    // Try each court to see if we can fit the entire reservation
+    for (const court of config.courts) {
+      // Get indices of the split parts on this specific court
+      const partIndicesOnCourt: number[] = [];
+      for (let i = 0; i < assignments.length; i++) {
+        if (assignments[i].id === resId && assignments[i].courtId === court.id) {
+          partIndicesOnCourt.push(i);
+        }
+      }
+
+      // Get indices of all split parts (on any court)
+      const allPartIndices: number[] = [];
+      for (let i = 0; i < assignments.length; i++) {
+        if (assignments[i].id === resId) {
+          allPartIndices.push(i);
+        }
+      }
+
+      // Create a test array without all the split parts
+      const withoutSplitParts = assignments.filter((_, i) => !allPartIndices.includes(i));
+
+      // Find flexible reservations on this court that overlap with our slot
+      const flexibleOnCourt: { index: number; res: AssignedReservation }[] = [];
+      for (let i = 0; i < withoutSplitParts.length; i++) {
+        const a = withoutSplitParts[i];
+        if (a.courtId === court.id && a.mode === 'flexible') {
+          if (slotsOverlap(a.slot, originalSlot)) {
+            flexibleOnCourt.push({ index: i, res: a });
+          }
+        }
+      }
+
+      // Check if we can move all conflicting flexible reservations to other courts
+      let canMoveAll = true;
+      const moves: { flexIdx: number; newCourtId: CourtId }[] = [];
+
+      for (const { index: flexIdx, res: flexRes } of flexibleOnCourt) {
+        let canMove = false;
+        for (const otherCourt of config.courts) {
+          if (otherCourt.id === court.id) continue;
+
+          // Check if this flexible res can fit on another court
+          // We need to consider we're also placing the unsplit reservation
+          const testWithoutFlex = withoutSplitParts.filter((_, i) => i !== flexIdx);
+          const testAssignments = [
+            ...testWithoutFlex,
+            { ...parts[0], slot: originalSlot, courtId: court.id, isSplit: false },
+          ];
+
+          const freeSlotsOnOther = findFreeSlots(
+            testAssignments,
+            otherCourt.id,
+            config.schedule.openTime,
+            config.schedule.closeTime
+          );
+
+          const fits = freeSlotsOnOther.some((fs) => slotFitsIn(flexRes.slot, fs));
+          if (fits) {
+            canMove = true;
+            moves.push({ flexIdx, newCourtId: otherCourt.id });
+            break;
+          }
+        }
+        if (!canMove) {
+          canMoveAll = false;
+          break;
+        }
+      }
+
+      // If no conflicting flex or all can be moved, also check if original slot fits
+      if (canMoveAll) {
+        // Build the test state after moving all flex reservations
+        const testState = withoutSplitParts.map((a, i) => {
+          const move = moves.find((m) => m.flexIdx === i);
+          if (move) {
+            return { ...a, courtId: move.newCourtId };
+          }
+          return a;
+        });
+
+        const freeSlotsOnTarget = findFreeSlots(
+          testState,
+          court.id,
+          config.schedule.openTime,
+          config.schedule.closeTime
+        );
+
+        const fits = freeSlotsOnTarget.some((fs) => slotFitsIn(originalSlot, fs));
+        if (fits) {
+          // Success! Apply the changes
+          // 1. Remove all split parts
+          for (let i = assignments.length - 1; i >= 0; i--) {
+            if (assignments[i].id === resId) {
+              assignments.splice(i, 1);
+            }
+          }
+
+          // 2. Move the flexible reservations
+          for (const move of moves) {
+            // Find the flex reservation in the modified assignments array
+            for (let i = 0; i < assignments.length; i++) {
+              const a = assignments[i];
+              if (
+                a.mode === 'flexible' &&
+                a.courtId === court.id &&
+                a.slot.start === flexibleOnCourt.find((f) => f.index === move.flexIdx)?.res.slot.start
+              ) {
+                assignments[i] = { ...a, courtId: move.newCourtId };
+                break;
+              }
+            }
+          }
+
+          // 3. Add the unsplit reservation
+          assignments.push({
+            ...parts[0],
+            slot: originalSlot,
+            courtId: court.id,
+            isSplit: false,
+          });
+
+          // Move on to the next split reservation
           break;
         }
       }

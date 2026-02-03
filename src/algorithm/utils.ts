@@ -103,3 +103,23 @@ export function formatTime(minutes: MinuteOfDay): string {
   const m = minutes % 60;
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
+
+/** Find the largest free slot across all courts */
+export function findLargestFreeSlotAcrossCourts(
+  assignments: AssignedReservation[],
+  courtIds: CourtId[],
+  openTime: MinuteOfDay,
+  closeTime: MinuteOfDay
+): number {
+  let largest = 0;
+  for (const courtId of courtIds) {
+    const freeSlots = findFreeSlots(assignments, courtId, openTime, closeTime);
+    for (const slot of freeSlots) {
+      const duration = slotDuration(slot);
+      if (duration > largest) {
+        largest = duration;
+      }
+    }
+  }
+  return largest;
+}

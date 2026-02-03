@@ -13,19 +13,21 @@ interface AnimatedTimelineProps {
   closeTime: number;
 }
 
-const COURT_LABEL_WIDTH = 60;
-const ROW_HEIGHT = 28;
-const ROW_GAP = 3;
-const HOUR_ROW_HEIGHT = 18;
+const COURT_LABEL_WIDTH = 70;
+const LABEL_GAP = 12;
+const ROW_HEIGHT = 26;
+const ROW_GAP = 4;
+const HOUR_ROW_HEIGHT = 20;
 
 const BLOCK_COLORS = {
   locked: '#818cf8',     // lighter indigo/purple — customer-picked
   naive: '#3b82f6',      // blue — random placement
   placed: '#22c55e',     // green — optimized by algorithm
   moving: '#fbbf24',     // amber — currently being moved/added
-  ghost: 'rgba(248, 113, 113, 0.25)',
-  ghostBorder: '#f87171',
+  ghost: 'rgba(239, 68, 68, 0.15)',  // light red background for ghost
+  ghostBorder: '#ef4444',  // red dashed border for ghost
   newBorder: '#ef4444',  // red border — newly added reservation
+  split: '#f97316',      // orange — split reservation connector
 };
 
 // Darker border shades for each block color
@@ -181,11 +183,11 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
               startPct: pct(move.fromStart),
               widthPct: wPct(move.fromStart, move.fromEnd),
               color: BLOCK_COLORS.ghost,
-              opacity: 0.5,
+              opacity: 0.7,
               highlight: false,
               isGhost: true,
               isNew: false,
-              zIndex: 1,
+              zIndex: 0, // Behind everything else
             });
           }
         }
@@ -247,6 +249,56 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
     anim.isTransitioning, anim.phase, courtIdToRow,
     openTime, totalMinutes, batchStep,
   ]);
+
+  // ── Compute split connectors ────────────────────────────────────────
+  const splitConnectors = useMemo(() => {
+    const pct = (m: number) => ((m - openTime) / totalMinutes) * 100;
+
+    // Group split assignments by reservation ID
+    const splitGroups = new Map<string, typeof smart.assignments>();
+    for (const a of smart.assignments) {
+      if (a.isSplit) {
+        const existing = splitGroups.get(a.id) || [];
+        existing.push(a);
+        splitGroups.set(a.id, existing);
+      }
+    }
+
+    const connectors: {
+      id: string;
+      fromRow: number;
+      toRow: number;
+      fromX: number;
+      toX: number;
+    }[] = [];
+
+    // For each split group, create connectors between consecutive parts
+    for (const [id, parts] of splitGroups) {
+      if (parts.length < 2) continue;
+
+      // Sort by start time
+      const sorted = [...parts].sort((a, b) => a.slot.start - b.slot.start);
+
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const from = sorted[i];
+        const to = sorted[i + 1];
+        const fromRow = courtIdToRow.get(from.courtId);
+        const toRow = courtIdToRow.get(to.courtId);
+        if (fromRow === undefined || toRow === undefined) continue;
+
+        // Connect from end of first block to start of second block
+        connectors.push({
+          id: `${id}-connector-${i}`,
+          fromRow,
+          toRow,
+          fromX: pct(from.slot.end),
+          toX: pct(to.slot.start),
+        });
+      }
+    }
+
+    return connectors;
+  }, [smart.assignments, courtIdToRow, openTime, totalMinutes]);
 
   // ── Derived counts ──────────────────────────────────────────────────
   const trackAreaHeight = courtNames.length * (ROW_HEIGHT + ROW_GAP);
@@ -372,13 +424,20 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
           label="Previous position"
           dashed
         />
+        {splitConnectors.length > 0 && (
+          <LegendItem
+            color={BLOCK_COLORS.split}
+            label="Split reservation"
+            dashed
+          />
+        )}
       </div>
 
       {/* Timeline */}
       <div style={styles.timelineWrapper}>
         {/* Hour labels */}
         <div style={styles.hourRow}>
-          <div style={{ width: COURT_LABEL_WIDTH, flexShrink: 0 }} />
+          <div style={{ width: COURT_LABEL_WIDTH + LABEL_GAP, flexShrink: 0 }} />
           <div style={styles.trackContainer}>
             {hourLabels.map((m) => (
               <div
@@ -424,8 +483,8 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
         <div
           style={{
             position: 'absolute',
-            left: COURT_LABEL_WIDTH,
-            top: HOUR_ROW_HEIGHT + 2,
+            left: COURT_LABEL_WIDTH + LABEL_GAP,
+            top: HOUR_ROW_HEIGHT + 6,
             right: 0,
             height: trackAreaHeight,
             pointerEvents: 'none',
@@ -439,8 +498,8 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
                 boxSizing: 'border-box',
                 left: `${bp.startPct}%`,
                 width: `${bp.widthPct}%`,
-                top: bp.courtRow * (ROW_HEIGHT + ROW_GAP) + 2,
-                height: ROW_HEIGHT - 4,
+                top: bp.courtRow * (ROW_HEIGHT + ROW_GAP) + 3,
+                height: ROW_HEIGHT - 6,
                 backgroundColor: bp.color,
                 border: bp.isGhost
                   ? `2px dashed ${BLOCK_COLORS.ghostBorder}`
@@ -459,6 +518,39 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
               }}
             />
           ))}
+
+          {/* Split reservation connectors */}
+          {splitConnectors.length > 0 && (
+            <svg
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                overflow: 'visible',
+              }}
+            >
+              {splitConnectors.map((conn) => {
+                const fromY = conn.fromRow * (ROW_HEIGHT + ROW_GAP) + ROW_HEIGHT / 2;
+                const toY = conn.toRow * (ROW_HEIGHT + ROW_GAP) + ROW_HEIGHT / 2;
+                return (
+                  <line
+                    key={conn.id}
+                    x1={`${conn.fromX}%`}
+                    y1={fromY}
+                    x2={`${conn.toX}%`}
+                    y2={toY}
+                    stroke={BLOCK_COLORS.split}
+                    strokeWidth="2"
+                    strokeDasharray="4 2"
+                    opacity={anim.phase === 'done' ? 0.8 : 0.5}
+                  />
+                );
+              })}
+            </svg>
+          )}
         </div>
       </div>
 
@@ -632,7 +724,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'flex-end',
     height: `${HOUR_ROW_HEIGHT}px`,
-    marginBottom: '2px',
+    marginBottom: '4px',
   },
   trackContainer: {
     flex: 1,
@@ -652,7 +744,8 @@ const styles: Record<string, React.CSSProperties> = {
     color: colors.textSecondary,
     fontWeight: fonts.weightMedium,
     textAlign: 'right' as const,
-    paddingRight: spacing.sm,
+    paddingRight: `${LABEL_GAP}px`,
+    boxSizing: 'content-box' as const,
   },
   track: {
     flex: 1,

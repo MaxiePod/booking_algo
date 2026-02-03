@@ -135,7 +135,8 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
             </div>
           </div>
 
-          {overflowGenerated > 0 && (
+          {/* Show overflow card in left column when NOT splitting */}
+          {!hasSplits && overflowGenerated > 0 && (
             <div style={overflowStyles.card}>
               <div style={overflowStyles.title}>Pent-Up Demand Absorption</div>
               <div style={overflowStyles.statRow}>
@@ -332,6 +333,32 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Show overflow card in right column when splitting IS enabled */}
+          {hasSplits && overflowGenerated > 0 && (
+            <div style={overflowStyles.card}>
+              <div style={overflowStyles.title}>Pent-Up Demand Absorption</div>
+              <div style={overflowStyles.statRow}>
+                <div style={overflowStyles.statBox}>
+                  <div style={overflowStyles.statValue}>{overflowGenerated.toFixed(1)}</div>
+                  <div style={overflowStyles.statLabel}>Generated</div>
+                </div>
+                <div style={overflowStyles.statBox}>
+                  <div style={{ ...overflowStyles.statValue, color: colors.primary }}>{overflowPlacedSmart.toFixed(1)}</div>
+                  <div style={overflowStyles.statLabel}>Smart Placed</div>
+                </div>
+                <div style={overflowStyles.statBox}>
+                  <div style={{ ...overflowStyles.statValue, color: colors.textMuted }}>{overflowPlacedNaive.toFixed(1)}</div>
+                  <div style={overflowStyles.statLabel}>Naive Placed</div>
+                </div>
+              </div>
+              {overflowPlacedSmart > overflowPlacedNaive && (
+                <div style={overflowStyles.note}>
+                  Smart absorbed <strong>{(overflowPlacedSmart - overflowPlacedNaive).toFixed(1)} more</strong> overflow bookings per day
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -61,11 +61,14 @@ export const CourtTimeline: React.FC<CourtTimelineProps> = ({
 
   const toPercent = (m: number) => ((m - openTime) / totalMinutes) * 100;
 
+  // Check if there are any split reservations
+  const hasSplits = smart.assignments.some((a) => a.isSplit) || naive.assignments.some((a) => a.isSplit);
+
   return (
     <div style={styles.container}>
       <h4 style={styles.title}>Sample Day — Court Timeline</h4>
       <p style={styles.subtitle}>
-        Showing the iteration with the largest difference between Smart and Naive assignment.
+        Showing an iteration representative of the target capacity utilization.
       </p>
 
       <div style={styles.legend}>
@@ -73,6 +76,7 @@ export const CourtTimeline: React.FC<CourtTimelineProps> = ({
         <LegendItem color={COLORS.flexible} label="Flexible (auto-assigned)" />
         <LegendItem color={COLORS.recovered} label="Recovered (gap in Naive, booked in Smart)" />
         <LegendItem color={COLORS.gap} label="Unused gap" />
+        {hasSplits && <LegendItem color={COLORS.split} label="Split reservation" dashed />}
       </div>
 
       <div className="podplay-timeline-row" style={styles.panelRow}>
@@ -122,6 +126,12 @@ export const CourtTimeline: React.FC<CourtTimelineProps> = ({
   );
 };
 
+const COURT_LABEL_WIDTH = 70;
+const LABEL_GAP = 12;
+const ROW_HEIGHT = 26;
+const ROW_GAP = 4;
+const HOUR_ROW_HEIGHT = 20;
+
 // ─── Timeline Grid Sub-component ───────────────────────────────────────
 
 const TimelineGrid: React.FC<{
@@ -146,6 +156,54 @@ const TimelineGrid: React.FC<{
   showRecovered,
 }) => {
   const courtMap = buildCourtMap(assignments);
+
+  // Compute split connectors
+  const splitConnectors = useMemo(() => {
+    const courtIdToRow = new Map<string, number>();
+    courtNames.forEach((_, i) => courtIdToRow.set(`c${i + 1}`, i));
+
+    // Group split assignments by reservation ID
+    const splitGroups = new Map<string, AssignedReservation[]>();
+    for (const a of assignments) {
+      if (a.isSplit) {
+        const existing = splitGroups.get(a.id) || [];
+        existing.push(a);
+        splitGroups.set(a.id, existing);
+      }
+    }
+
+    const connectors: {
+      id: string;
+      fromRow: number;
+      toRow: number;
+      fromX: number;
+      toX: number;
+    }[] = [];
+
+    for (const [id, parts] of splitGroups) {
+      if (parts.length < 2) continue;
+
+      const sorted = [...parts].sort((a, b) => a.slot.start - b.slot.start);
+
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const from = sorted[i];
+        const to = sorted[i + 1];
+        const fromRow = courtIdToRow.get(from.courtId);
+        const toRow = courtIdToRow.get(to.courtId);
+        if (fromRow === undefined || toRow === undefined) continue;
+
+        connectors.push({
+          id: `${id}-connector-${i}`,
+          fromRow,
+          toRow,
+          fromX: toPercent(from.slot.end),
+          toX: toPercent(to.slot.start),
+        });
+      }
+    }
+
+    return connectors;
+  }, [assignments, courtNames, toPercent]);
 
   return (
     <div style={styles.grid}>
@@ -212,21 +270,26 @@ const TimelineGrid: React.FC<{
                     ? COLORS.locked
                     : COLORS.flexible;
 
+                const isSplit = b.isSplit;
+
                 return (
                   <div
-                    key={b.id}
-                    title={`${b.id} (${b.mode}) ${formatHour(b.slot.start)}–${formatHour(b.slot.end)}`}
+                    key={`${b.id}-${b.slot.start}`}
+                    title={`${b.id}${isSplit ? ' (split)' : ''} (${b.mode}) ${formatHour(b.slot.start)}–${formatHour(b.slot.end)}`}
                     style={{
                       position: 'absolute',
                       left: `${toPercent(b.slot.start)}%`,
                       width: `${((b.slot.end - b.slot.start) / totalMinutes) * 100}%`,
-                      top: '2px',
-                      bottom: '2px',
+                      top: '3px',
+                      bottom: '3px',
                       backgroundColor: bgColor,
                       borderRadius: '3px',
                       border: isRecovered
                         ? `1px solid ${COLORS.recoveredBorder}`
-                        : 'none',
+                        : isSplit
+                          ? `2px solid ${COLORS.split}`
+                          : 'none',
+                      boxSizing: 'border-box',
                     }}
                   />
                 );
@@ -235,6 +298,39 @@ const TimelineGrid: React.FC<{
           </div>
         );
       })}
+
+      {/* Split reservation connectors */}
+      {splitConnectors.length > 0 && (
+        <svg
+          style={{
+            position: 'absolute',
+            top: HOUR_ROW_HEIGHT + 4,
+            left: COURT_LABEL_WIDTH + LABEL_GAP,
+            width: `calc(100% - ${COURT_LABEL_WIDTH + LABEL_GAP}px)`,
+            height: courtNames.length * (ROW_HEIGHT + ROW_GAP),
+            pointerEvents: 'none',
+            overflow: 'visible',
+          }}
+        >
+          {splitConnectors.map((conn) => {
+            const fromY = conn.fromRow * (ROW_HEIGHT + ROW_GAP) + ROW_HEIGHT / 2;
+            const toY = conn.toRow * (ROW_HEIGHT + ROW_GAP) + ROW_HEIGHT / 2;
+            return (
+              <line
+                key={conn.id}
+                x1={`${conn.fromX}%`}
+                y1={fromY}
+                x2={`${conn.toX}%`}
+                y2={toY}
+                stroke={COLORS.split}
+                strokeWidth="2"
+                strokeDasharray="4 2"
+                opacity={0.8}
+              />
+            );
+          })}
+        </svg>
+      )}
     </div>
   );
 };
@@ -261,9 +357,10 @@ const TimelineStat: React.FC<{
 
 // ─── Legend ─────────────────────────────────────────────────────────────
 
-const LegendItem: React.FC<{ color: string; label: string }> = ({
+const LegendItem: React.FC<{ color: string; label: string; dashed?: boolean }> = ({
   color,
   label,
+  dashed,
 }) => (
   <div style={styles.legendItem}>
     <div
@@ -271,7 +368,9 @@ const LegendItem: React.FC<{ color: string; label: string }> = ({
         width: '14px',
         height: '14px',
         borderRadius: '3px',
-        backgroundColor: color,
+        backgroundColor: dashed ? 'transparent' : color,
+        border: dashed ? `2px dashed ${color}` : 'none',
+        boxSizing: 'border-box' as const,
         flexShrink: 0,
       }}
     />
@@ -311,6 +410,7 @@ export const COLORS = {
   recovered: '#22c55e',     // green — bookable in smart, gap in naive
   recoveredBorder: '#4ade80',
   gap: '#1a1a1a',           // dark surface — unused
+  split: '#f97316',         // orange — split reservation connector
 };
 
 // ─── Styles ────────────────────────────────────────────────────────────
@@ -360,32 +460,35 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: spacing.sm,
     textAlign: 'center' as const,
   },
-  grid: {},
+  grid: {
+    position: 'relative' as const,
+  },
   hourRow: {
     display: 'flex',
     alignItems: 'flex-end',
-    height: '18px',
-    marginBottom: '2px',
+    height: `${HOUR_ROW_HEIGHT}px`,
+    marginBottom: '4px',
   },
   courtRow: {
     display: 'flex',
     alignItems: 'center',
-    height: '28px',
-    marginBottom: '3px',
+    height: `${ROW_HEIGHT}px`,
+    marginBottom: `${ROW_GAP}px`,
   },
   courtLabel: {
-    width: '60px',
+    width: `${COURT_LABEL_WIDTH}px`,
     flexShrink: 0,
     fontSize: '11px',
     color: colors.textSecondary,
     fontWeight: fonts.weightMedium,
     textAlign: 'right' as const,
-    paddingRight: spacing.sm,
+    paddingRight: `${LABEL_GAP}px`,
+    boxSizing: 'content-box' as const,
   },
   trackContainer: {
     flex: 1,
     position: 'relative' as const,
-    height: '18px',
+    height: `${HOUR_ROW_HEIGHT}px`,
   },
   track: {
     flex: 1,

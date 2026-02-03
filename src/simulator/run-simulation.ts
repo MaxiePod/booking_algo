@@ -532,13 +532,15 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
     avgUnassigned: avg(naiveResults.map((r) => r.unassigned.length)),
   };
 
-  // Pick sample day with the biggest gap difference for visual impact
+  // Pick sample day whose utilization is closest to target utilization
+  // This ensures the animation reflects the configured capacity level
   let bestSampleIdx = 0;
-  let bestDelta = 0;
+  let bestUtilDiff = Infinity;
   for (let i = 0; i < smartResults.length; i++) {
-    const delta = naiveResults[i].totalGapMinutes - smartResults[i].totalGapMinutes;
-    if (delta > bestDelta) {
-      bestDelta = delta;
+    const smartUtil = utilization(smartResults[i], totalMinutes);
+    const utilDiff = Math.abs(smartUtil - targetUtilization);
+    if (utilDiff < bestUtilDiff) {
+      bestUtilDiff = utilDiff;
       bestSampleIdx = i;
     }
   }
