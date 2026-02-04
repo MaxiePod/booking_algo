@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { calculateSavings } from '../../algorithm/inefficiency-model';
+import { calculateSavingsSimulatorAligned } from '../../algorithm/inefficiency-model';
 import type { CalculatorInputs, CalculatorResults } from '../../shared/types';
 import { DEFAULT_INPUTS } from '../../shared/types';
 import { DEFAULT_OPERATING_HOURS } from '../utils/constants';
@@ -8,7 +8,7 @@ export interface UseCalculatorReturn {
   inputs: CalculatorInputs;
   results: CalculatorResults;
   setNumCourts: (v: number) => void;
-  setCurrentUtilizationPercent: (v: number) => void;
+  setTargetUtilizationPercent: (v: number) => void;
   setPricePerHour: (v: number) => void;
   setLockedPercent: (v: number) => void;
   setPeriod: (v: CalculatorInputs['period']) => void;
@@ -25,24 +25,24 @@ export function useCalculator(
   });
 
   const results = useMemo<CalculatorResults>(() => {
-    const result = calculateSavings({
+    const result = calculateSavingsSimulatorAligned({
       numCourts: inputs.numCourts,
       operatingHoursPerDay: DEFAULT_OPERATING_HOURS,
       pricePerHour: inputs.pricePerHour,
-      currentUtilization: inputs.currentUtilizationPercent / 100,
+      targetUtilization: inputs.targetUtilizationPercent / 100,
       lockedFraction: inputs.lockedPercent / 100,
       lockPremiumPerHour: inputs.lockPremiumPerHour,
       period: inputs.period,
     });
 
     return {
-      revenuePodPlay: result.revenuePodPlay,
-      revenueTraditional: result.revenueTraditional,
+      revenueSmart: result.revenueSmart,
+      revenueNaive: result.revenueNaive,
       savings: result.savings,
       savingsPercent: result.savingsPercent,
       lockPremiumRevenue: result.lockPremiumRevenue,
-      effectiveUtilPodPlay: result.effectiveUtilPodPlay,
-      effectiveUtilTraditional: result.effectiveUtilTraditional,
+      effectiveUtilSmart: result.effectiveUtilSmart,
+      effectiveUtilNaive: result.effectiveUtilNaive,
     };
   }, [inputs]);
 
@@ -58,7 +58,7 @@ export function useCalculator(
     inputs,
     results,
     setNumCourts: (v) => setInputs({ numCourts: v }),
-    setCurrentUtilizationPercent: (v) => setInputs({ currentUtilizationPercent: v }),
+    setTargetUtilizationPercent: (v) => setInputs({ targetUtilizationPercent: v }),
     setPricePerHour: (v) => setInputs({ pricePerHour: v }),
     setLockedPercent: (v) => setInputs({ lockedPercent: v }),
     setPeriod: (v) => setInputs({ period: v }),

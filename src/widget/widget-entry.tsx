@@ -16,7 +16,7 @@ function init() {
   if (courts) initialInputs.numCourts = parseInt(courts, 10);
 
   const utilization = container.dataset.utilization;
-  if (utilization) initialInputs.currentUtilizationPercent = parseInt(utilization, 10);
+  if (utilization) initialInputs.targetUtilizationPercent = parseInt(utilization, 10);
 
   const price = container.dataset.price;
   if (price) initialInputs.pricePerHour = parseInt(price, 10);

@@ -2,7 +2,7 @@ import React from 'react';
 import { InputPanel } from './components/InputPanel';
 import { ResultsPanel } from './components/ResultsPanel';
 import { useCalculator } from './hooks/useCalculator';
-import { colors, fonts, spacing } from '../shared/design-tokens';
+import { colors, fonts, spacing, borderRadius, shadows } from '../shared/design-tokens';
 import type { CalculatorInputs } from '../shared/types';
 
 interface SavingsCalculatorProps {
@@ -16,7 +16,7 @@ export const SavingsCalculator: React.FC<SavingsCalculatorProps> = ({
     inputs,
     results,
     setNumCourts,
-    setCurrentUtilizationPercent,
+    setTargetUtilizationPercent,
     setPricePerHour,
     setLockedPercent,
     setPeriod,
@@ -27,17 +27,22 @@ export const SavingsCalculator: React.FC<SavingsCalculatorProps> = ({
   return (
     <div style={styles.wrapper}>
       <div style={styles.header}>
-        <h2 style={styles.title}>Interactive Estimated Revenue Calculator</h2>
+        <div style={styles.badge}>Revenue Estimator</div>
+        <h2 style={styles.title}>
+          Calculate Your <span style={styles.highlight}>Potential Savings</span>
+          <sup style={styles.betaBadge}>BETA</sup>
+        </h2>
         <p style={styles.subtitle}>
           See how much additional revenue you could earn with automatic court
           assignment vs. letting customers pick their own court.
         </p>
       </div>
+
       <div className="podplay-calc-grid" style={styles.grid}>
         <InputPanel
           inputs={inputs}
           onNumCourtsChange={setNumCourts}
-          onUtilizationChange={setCurrentUtilizationPercent}
+          onUtilizationChange={setTargetUtilizationPercent}
           onPriceChange={setPricePerHour}
           onLockedChange={setLockedPercent}
           onLockPremiumChange={(v) => setInputs({ lockPremiumPerHour: v })}
@@ -56,31 +61,57 @@ export const SavingsCalculator: React.FC<SavingsCalculatorProps> = ({
 const styles: Record<string, React.CSSProperties> = {
   wrapper: {
     fontFamily: fonts.family,
-    maxWidth: '1000px',
+    maxWidth: '1100px',
     margin: '0 auto',
     padding: `${spacing.xl} ${spacing.lg}`,
     color: colors.text,
   },
   header: {
     textAlign: 'center' as const,
-    marginBottom: spacing.xxl,
+    marginBottom: spacing['2xl'],
+  },
+  badge: {
+    display: 'inline-block',
+    fontSize: fonts.sizeXs,
+    fontWeight: fonts.weightSemibold,
+    color: colors.accent,
+    backgroundColor: colors.accentLight,
+    padding: `${spacing.xs} ${spacing.md}`,
+    borderRadius: borderRadius.full,
+    marginBottom: spacing.md,
+    letterSpacing: fonts.trackingWide,
+    textTransform: 'uppercase' as const,
   },
   title: {
-    fontSize: fonts.sizeXxl,
-    fontWeight: fonts.weightBold,
+    fontSize: fonts.size3xl,
+    fontWeight: fonts.weightLight,
     color: colors.text,
     marginTop: 0,
     marginBottom: spacing.md,
-    letterSpacing: '-0.5px',
+    letterSpacing: '-0.01em',
+    lineHeight: fonts.lineHeightTight,
+  },
+  highlight: {
+    color: colors.accent,
+    position: 'relative' as const,
+  },
+  betaBadge: {
+    fontSize: fonts.sizeSmall,
+    fontWeight: fonts.weightSemibold,
+    color: colors.textMuted,
+    marginLeft: spacing.sm,
+    verticalAlign: 'super',
+    letterSpacing: fonts.trackingWide,
   },
   subtitle: {
     fontSize: fonts.sizeMd,
     color: colors.textSecondary,
     margin: 0,
-    maxWidth: '640px',
+    maxWidth: '580px',
     marginLeft: 'auto',
     marginRight: 'auto',
-    lineHeight: 1.6,
+    lineHeight: fonts.lineHeightRelaxed,
+    fontWeight: fonts.weightLight,
   },
   grid: {
     display: 'grid',
@@ -89,26 +120,3 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'stretch',
   },
 };
-
-// Add responsive styles via a <style> tag for the grid
-const RESPONSIVE_CSS = `
-@media (max-width: 768px) {
-  .podplay-calc-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .podplay-timeline-row {
-    grid-template-columns: 1fr !important;
-  }
-}
-`;
-
-// Inject responsive CSS once
-if (typeof document !== 'undefined') {
-  const existing = document.getElementById('podplay-calc-styles');
-  if (!existing) {
-    const style = document.createElement('style');
-    style.id = 'podplay-calc-styles';
-    style.textContent = RESPONSIVE_CSS;
-    document.head.appendChild(style);
-  }
-}

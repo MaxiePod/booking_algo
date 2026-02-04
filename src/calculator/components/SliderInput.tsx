@@ -1,5 +1,5 @@
 import React from 'react';
-import { colors, fonts, spacing, borderRadius } from '../../shared/design-tokens';
+import { colors, fonts, spacing, borderRadius, transitions } from '../../shared/design-tokens';
 
 interface SliderInputProps {
   label: string;
@@ -19,33 +19,16 @@ interface SliderInputProps {
   blinking?: boolean;
   /** Custom render for the value display (overrides default prefix+value+unit) */
   renderValue?: (value: number) => React.ReactNode;
+  /** Custom label for the min end of the slider (overrides showing min value) */
+  minLabel?: string;
+  /** Custom label for the max end of the slider (overrides showing max value) */
+  maxLabel?: string;
+  /** Hide the range labels entirely */
+  hideRangeLabels?: boolean;
 }
 
-/** Amber color for default-value triangle marks (matches variance tooltip bell curve) */
-const DEFAULT_MARK_COLOR = '#f59e0b';
-
-/** Inject blink keyframes once into <head> */
-const BLINK_STYLE_ID = 'podplay-default-blink-style';
-function ensureBlinkStyle() {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(BLINK_STYLE_ID)) return;
-  const style = document.createElement('style');
-  style.id = BLINK_STYLE_ID;
-  style.textContent = `
-@keyframes podplay-default-blink {
-  0%    { opacity: 1;    transform: scale(3); }
-  16.5% { opacity: 0.15; transform: scale(3); }
-  33%   { opacity: 1;    transform: scale(3); }
-  49.5% { opacity: 0.15; transform: scale(3); }
-  66%   { opacity: 1;    transform: scale(1); }
-  83%   { opacity: 0.15; transform: scale(1); }
-  100%  { opacity: 1;    transform: scale(1); }
-}
-.podplay-default-blink {
-  animation: podplay-default-blink 1s ease-in-out 1;
-}`;
-  document.head.appendChild(style);
-}
+/** Green color for default-value triangle marks */
+const DEFAULT_MARK_COLOR = colors.successDark;
 
 export const SliderInput: React.FC<SliderInputProps> = ({
   label,
@@ -60,8 +43,12 @@ export const SliderInput: React.FC<SliderInputProps> = ({
   defaultValue,
   blinking,
   renderValue,
+  minLabel,
+  maxLabel,
+  hideRangeLabels,
 }) => {
-  React.useEffect(() => { ensureBlinkStyle(); }, []);
+  const [isHovered, setIsHovered] = React.useState(false);
+  const [isDragging, setIsDragging] = React.useState(false);
 
   const percent = ((value - min) / (max - min)) * 100;
   const defaultPercent = defaultValue != null
@@ -69,34 +56,61 @@ export const SliderInput: React.FC<SliderInputProps> = ({
     : null;
 
   return (
-    <div style={styles.container}>
+    <div
+      style={styles.container}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div style={styles.header}>
         <label style={styles.label}>
           {label}
           {labelSuffix}
         </label>
-        <span style={styles.value}>
+        <span
+          style={{
+            ...styles.value,
+            color: isDragging ? colors.primary : colors.text,
+            transform: isDragging ? 'scale(1.05)' : 'scale(1)',
+          }}
+        >
           {renderValue ? renderValue(value) : <>{prefix}{value}{unit}</>}
         </span>
       </div>
-      <div style={styles.sliderTrack}>
+
+      <div style={styles.sliderWrapper}>
+        {/* Track background with gradient fill */}
+        <div style={styles.trackBg}>
+          <div
+            style={{
+              ...styles.trackFill,
+              width: `${percent}%`,
+              opacity: isHovered || isDragging ? 1 : 0.8,
+            }}
+          />
+        </div>
+
+        {/* Default value marker */}
         {defaultPercent != null && (
           <div
             className={`podplay-default-mark${blinking ? ' podplay-default-blink' : ''}`}
             style={{
               position: 'absolute',
-              top: 2,
+              top: -6,
               left: `calc(8px + (100% - 16px) * ${defaultPercent / 100})`,
               width: 0,
               height: 0,
               borderLeft: '4px solid transparent',
               borderRight: '4px solid transparent',
               borderTop: `6px solid ${DEFAULT_MARK_COLOR}`,
+              transform: 'translateX(-4px)',
               pointerEvents: 'none',
+              zIndex: 2,
             }}
             title={`Default: ${prefix}${defaultValue}${unit}`}
           />
         )}
+
+        {/* Actual range input */}
         <input
           type="range"
           min={min}
@@ -104,20 +118,25 @@ export const SliderInput: React.FC<SliderInputProps> = ({
           step={step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          style={{
-            ...styles.slider,
-            background: `linear-gradient(to right, ${colors.primary} 0%, ${colors.primary} ${percent}%, ${colors.border} ${percent}%, ${colors.border} 100%)`,
-          }}
+          onMouseDown={() => setIsDragging(true)}
+          onMouseUp={() => setIsDragging(false)}
+          onTouchStart={() => setIsDragging(true)}
+          onTouchEnd={() => setIsDragging(false)}
+          style={styles.slider}
         />
       </div>
-      <div style={styles.rangeLabels}>
-        <span style={styles.rangeLabel}>
-          {prefix}{min}{unit}
-        </span>
-        <span style={styles.rangeLabel}>
-          {prefix}{max}{unit}
-        </span>
-      </div>
+
+      {/* Range labels */}
+      {!hideRangeLabels && (
+        <div style={styles.rangeLabels}>
+          <span style={styles.rangeLabel}>
+            {minLabel ?? `${prefix}${min}${unit}`}
+          </span>
+          <span style={styles.rangeLabel}>
+            {maxLabel ?? `${prefix}${max}${unit}`}
+          </span>
+        </div>
+      )}
     </div>
   );
 };
@@ -135,37 +154,57 @@ const styles: Record<string, React.CSSProperties> = {
   label: {
     display: 'flex',
     alignItems: 'center',
+    gap: spacing.xs,
     fontSize: fonts.sizeBase,
     fontWeight: fonts.weightMedium,
     color: colors.textSecondary,
   },
   value: {
     fontSize: fonts.sizeMd,
-    fontWeight: fonts.weightBold,
+    fontWeight: fonts.weightSemibold,
     color: colors.text,
-    minWidth: '48px',
+    minWidth: '60px',
     textAlign: 'right' as const,
+    transition: `all ${transitions.fast}`,
+    fontFamily: fonts.family,
   },
-  sliderTrack: {
+  sliderWrapper: {
     position: 'relative' as const,
-    paddingTop: 10,
+    height: '24px',
+    display: 'flex',
+    alignItems: 'center',
+  },
+  trackBg: {
+    position: 'absolute' as const,
+    left: 0,
+    right: 0,
+    height: '6px',
+    backgroundColor: colors.border,
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+  },
+  trackFill: {
+    height: '100%',
+    background: `linear-gradient(90deg, ${colors.primaryMuted}, ${colors.textSecondary})`,
+    borderRadius: borderRadius.full,
+    transition: `opacity ${transitions.fast}`,
   },
   slider: {
+    position: 'relative' as const,
     width: '100%',
-    height: '4px',
-    borderRadius: '2px',
-    outline: 'none',
-    appearance: 'none' as const,
-    WebkitAppearance: 'none' as const,
+    height: '24px',
+    background: 'transparent',
     cursor: 'pointer',
+    zIndex: 3,
   },
   rangeLabels: {
     display: 'flex',
     justifyContent: 'space-between',
-    marginTop: '6px',
+    marginTop: spacing.xs,
   },
   rangeLabel: {
-    fontSize: fonts.sizeSmall,
+    fontSize: fonts.sizeXs,
     color: colors.textMuted,
+    fontWeight: fonts.weightMedium,
   },
 };

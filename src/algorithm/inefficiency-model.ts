@@ -217,6 +217,100 @@ export function calculateSavings(input: {
   };
 }
 
+// ─── Simulator-Aligned Model ────────────────────────────────────────────
+
+/**
+ * Simulator-aligned savings calculation.
+ *
+ * Compares smart algorithm vs naive algorithm at the same locked percentage.
+ * Calibrated from Monte Carlo simulation results:
+ * - At 0% locked: smart ≈ naive (no packing advantage needed)
+ * - As locked % increases, naive loses efficiency due to random court ordering
+ * - Loss scales with both locked % and utilization pressure
+ *
+ * From simulator data (CV=15%, default settings):
+ * - At 56% target, 11% locked: Smart 56.1%, Naive 54.2% (1.9pp gap, ~3.4% relative)
+ * - At 80% target, 11% locked: Smart 83.5%, Naive 79.1% (4.4pp gap, ~5.3% relative)
+ *
+ * Model: naiveLoss = k × locked × targetUtil
+ * Calibration: ~3.5% relative loss = k × 0.11 × 0.56 → k ≈ 0.55
+ */
+export function calculateSavingsSimulatorAligned(input: {
+  numCourts: number;
+  operatingHoursPerDay: number;
+  pricePerHour: number;
+  targetUtilization: number;
+  lockedFraction: number;
+  lockPremiumPerHour?: number;
+  period: TimePeriod;
+}): {
+  revenueSmart: number;
+  revenueNaive: number;
+  savings: number;
+  savingsPercent: number;
+  lockPremiumRevenue: number;
+  effectiveUtilSmart: number;
+  effectiveUtilNaive: number;
+} {
+  const { targetUtilization, lockedFraction } = input;
+
+  // Calibration constant from simulator results
+  // At 56% util, 11% locked: ~3.4% relative loss for naive
+  // At 80% util, 11% locked: ~5.3% relative loss for naive
+  const k = 0.55;
+
+  // Smart algorithm achieves target utilization
+  const effectiveUtilSmart = Math.min(1.0, targetUtilization);
+
+  // Naive algorithm loses efficiency due to random court ordering
+  // Loss increases with both locked % and utilization pressure
+  const naiveRelativeLoss = k * lockedFraction * targetUtilization;
+  const effectiveUtilNaive = Math.min(
+    1.0,
+    targetUtilization * (1 - naiveRelativeLoss)
+  );
+
+  const multiplier = periodMultiplier(input.period);
+
+  const revenueSmart =
+    calculateRevenue({
+      numCourts: input.numCourts,
+      operatingHoursPerDay: input.operatingHoursPerDay,
+      pricePerHour: input.pricePerHour,
+      effectiveUtilization: effectiveUtilSmart,
+    }) * multiplier;
+
+  const revenueNaive =
+    calculateRevenue({
+      numCourts: input.numCourts,
+      operatingHoursPerDay: input.operatingHoursPerDay,
+      pricePerHour: input.pricePerHour,
+      effectiveUtilization: effectiveUtilNaive,
+    }) * multiplier;
+
+  const savings = revenueSmart - revenueNaive;
+  const savingsPercent = revenueNaive > 0 ? (savings / revenueNaive) * 100 : 0;
+
+  // Lock premium: charged on locked court-hours with smart algorithm
+  const lockedBookedHours =
+    input.numCourts *
+    input.operatingHoursPerDay *
+    effectiveUtilSmart *
+    lockedFraction;
+  const lockPremiumRevenue =
+    lockedBookedHours * (input.lockPremiumPerHour ?? 0) * multiplier;
+
+  return {
+    revenueSmart,
+    revenueNaive,
+    savings,
+    savingsPercent,
+    lockPremiumRevenue,
+    effectiveUtilSmart,
+    effectiveUtilNaive,
+  };
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────
 
 function clamp(value: number, min: number, max: number): number {

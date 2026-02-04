@@ -415,7 +415,13 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
     minSlotDuration: inputs.minReservationMin,
   };
 
-  const config: AssignerConfig = { courts, schedule, allowSplitting: inputs.allowSplitting };
+  const config: AssignerConfig = {
+    courts,
+    schedule,
+    allowSplitting: inputs.allowSplitting,
+    splittingTolerance: inputs.splittingTolerance,
+    pricePerHour: inputs.pricePerHour,
+  };
   const configNoSplit: AssignerConfig = { courts, schedule, allowSplitting: false };
   const totalMinutes = inputs.numCourts * (schedule.closeTime - schedule.openTime);
   const lockedFraction = inputs.lockedPercent / 100;

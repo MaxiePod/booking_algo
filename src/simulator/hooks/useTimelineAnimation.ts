@@ -21,52 +21,114 @@ export type AnimPhase = 'idle' | 'playing' | 'paused' | 'done';
  * Build animation steps: one batch-move step (all repositions simultaneously)
  * followed by individual add steps for newly placed reservations.
  * Locked and same-position-in-both reservations are excluded.
+ *
+ * Handles split reservations properly by grouping assignments by ID
+ * and comparing each part individually.
  */
 export function computeAnimSteps(
   naiveAssignments: AssignmentResult,
   smartAssignments: AssignmentResult
 ): AnimStep[] {
-  const naiveById = new Map(
-    naiveAssignments.assignments.map((a) => [a.id, a])
-  );
+  // Group naive assignments by ID (handles split reservations)
+  const naiveById = new Map<string, typeof naiveAssignments.assignments>();
+  for (const a of naiveAssignments.assignments) {
+    const existing = naiveById.get(a.id) || [];
+    existing.push(a);
+    naiveById.set(a.id, existing);
+  }
 
   const moves: MoveDetail[] = [];
   const adds: { type: 'add'; reservationId: string; court: string; start: number; end: number }[] = [];
 
-  for (const sa of smartAssignments.assignments) {
-    if (sa.mode === 'locked') continue;
+  // Group smart assignments by ID to process together
+  const smartById = new Map<string, typeof smartAssignments.assignments>();
+  for (const a of smartAssignments.assignments) {
+    const existing = smartById.get(a.id) || [];
+    existing.push(a);
+    smartById.set(a.id, existing);
+  }
 
-    const na = naiveById.get(sa.id);
+  // Process each unique ID in smart assignments
+  for (const [id, smartParts] of smartById) {
+    // Skip locked reservations
+    if (smartParts[0]?.mode === 'locked') continue;
 
-    if (!na) {
-      adds.push({
-        type: 'add',
-        reservationId: sa.id,
-        court: sa.courtId,
-        start: sa.slot.start,
-        end: sa.slot.end,
-      });
+    const naiveParts = naiveById.get(id) || [];
+
+    // If no naive parts, all smart parts are new additions
+    if (naiveParts.length === 0) {
+      for (const sa of smartParts) {
+        adds.push({
+          type: 'add',
+          reservationId: sa.id,
+          court: sa.courtId,
+          start: sa.slot.start,
+          end: sa.slot.end,
+        });
+      }
       continue;
     }
 
-    // Same position in both → skip
-    if (
-      na.courtId === sa.courtId &&
-      na.slot.start === sa.slot.start &&
-      na.slot.end === sa.slot.end
-    ) {
-      continue;
-    }
+    // Match smart parts to naive parts
+    // For non-split reservations: compare single parts
+    // For split reservations: compare each smart part to find a matching naive part
+    const usedNaiveIndices = new Set<number>();
 
-    moves.push({
-      reservationId: sa.id,
-      fromCourt: na.courtId,
-      fromStart: na.slot.start,
-      fromEnd: na.slot.end,
-      toCourt: sa.courtId,
-      toStart: sa.slot.start,
-      toEnd: sa.slot.end,
-    });
+    for (const sa of smartParts) {
+      // Find a matching naive part (same position)
+      let matchedNaiveIdx = -1;
+      for (let i = 0; i < naiveParts.length; i++) {
+        if (usedNaiveIndices.has(i)) continue;
+        const na = naiveParts[i];
+        if (
+          na.courtId === sa.courtId &&
+          na.slot.start === sa.slot.start &&
+          na.slot.end === sa.slot.end
+        ) {
+          matchedNaiveIdx = i;
+          break;
+        }
+      }
+
+      if (matchedNaiveIdx >= 0) {
+        // Same position — no animation needed
+        usedNaiveIndices.add(matchedNaiveIdx);
+        continue;
+      }
+
+      // Find any unused naive part to move from
+      let fromNaiveIdx = -1;
+      for (let i = 0; i < naiveParts.length; i++) {
+        if (!usedNaiveIndices.has(i)) {
+          fromNaiveIdx = i;
+          break;
+        }
+      }
+
+      if (fromNaiveIdx >= 0) {
+        // Move from naive position to smart position
+        const na = naiveParts[fromNaiveIdx];
+        usedNaiveIndices.add(fromNaiveIdx);
+        moves.push({
+          reservationId: sa.id,
+          fromCourt: na.courtId,
+          fromStart: na.slot.start,
+          fromEnd: na.slot.end,
+          toCourt: sa.courtId,
+          toStart: sa.slot.start,
+          toEnd: sa.slot.end,
+        });
+      } else {
+        // No naive part available — this is a new addition (e.g., split added a part)
+        adds.push({
+          type: 'add',
+          reservationId: sa.id,
+          court: sa.courtId,
+          start: sa.slot.start,
+          end: sa.slot.end,
+        });
+      }
+    }
   }
 
   // Sort moves by destination court then start
@@ -102,6 +164,7 @@ export interface TimelineAnimationState {
   phase: AnimPhase;
   speed: number;
   isTransitioning: boolean;
+  isPaused: boolean;
   play: () => void;
   pause: () => void;
   reset: () => void;
@@ -257,6 +320,7 @@ export function useTimelineAnimation(
     phase,
     speed,
     isTransitioning,
+    isPaused: phase === 'paused',
     play,
     pause,
     reset,

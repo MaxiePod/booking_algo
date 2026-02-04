@@ -405,12 +405,12 @@ export function formatHour(minutes: number): string {
 // ─── Color constants ───────────────────────────────────────────────────
 
 export const COLORS = {
-  locked: '#818cf8',        // lighter indigo — customer-picked
-  flexible: '#2563eb',      // deeper blue — auto-assigned (distinct from locked)
-  recovered: '#22c55e',     // green — bookable in smart, gap in naive
-  recoveredBorder: '#4ade80',
-  gap: '#1a1a1a',           // dark surface — unused
-  split: '#f97316',         // orange — split reservation connector
+  locked: '#E5E1D8',        // cream/beige — customer-picked (premium)
+  flexible: '#737373',      // medium grey — auto-assigned
+  recovered: '#10b981',     // green — bookable in smart, gap in naive
+  recoveredBorder: '#34d399',
+  gap: '#1F1F1F',           // dark surface — unused
+  split: '#A3A3A3',         // light grey — split reservation connector
 };
 
 // ─── Styles ────────────────────────────────────────────────────────────

@@ -32,8 +32,8 @@ const VarianceTooltip: React.FC<{ mean: number }> = ({ mean }) => {
     }
     return { path: pts.join(' '), color, label };
   };
-  const narrow = curve(0.6, '#3b82f6', '10%');
-  const wide = curve(1.4, '#f59e0b', '50%');
+  const narrow = curve(0.6, '#A3A3A3', '10%');
+  const wide = curve(1.4, '#E5E1D8', '50%');
 
   const lo = Math.round(mean * 0.5);
   const hi = Math.round(mean * 1.5);
@@ -62,8 +62,8 @@ const VarianceTooltip: React.FC<{ mean: number }> = ({ mean }) => {
   );
 };
 
-/** Amber color for default-value triangle marks */
-const DEFAULT_MARK_COLOR = '#f59e0b';
+/** Green color for default-value triangle marks */
+const DEFAULT_MARK_COLOR = colors.successDark;
 
 /** Scientific explanation tooltip for Demand Pressure */
 const DemandPressureTooltip: React.FC<{ utilization: number }> = ({ utilization }) => {
@@ -160,6 +160,7 @@ const DurationBinSliders: React.FC<{
                   borderLeft: '4px solid transparent',
                   borderRight: '4px solid transparent',
                   borderTop: `6px solid ${DEFAULT_MARK_COLOR}`,
+                  transform: 'translateX(-4px)',
                   pointerEvents: 'none',
                 }}
                 title={`Default: ${defPct}%`}
@@ -208,14 +209,14 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
       <div style={styles.headingRow}>
         <h3 style={styles.heading}>Simulation Parameters</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: colors.textMuted, fontSize: fonts.sizeSmall }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: colors.textMuted, fontSize: fonts.sizeXs }}>
             <span style={{
               display: 'inline-block',
               width: 0,
               height: 0,
               borderLeft: '4px solid transparent',
               borderRight: '4px solid transparent',
-              borderTop: '6px solid #f59e0b',
+              borderTop: `6px solid ${colors.successDark}`,
             }} />
             Default
           </span>
@@ -391,6 +392,39 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
                 }
               />
             </div>
+
+            {/* Splitting tolerance slider - only shown when splitting is enabled */}
+            {inputs.allowSplitting && (
+              <div style={styles.splittingToleranceRow}>
+                <SliderInput
+                  label="Splitting Tolerance"
+                  value={inputs.splittingTolerance}
+                  min={0}
+                  max={100}
+                  unit="%"
+                  onChange={(v) => onInputsChange({ splittingTolerance: v })}
+                  labelSuffix={
+                    <InfoTooltip
+                      text={
+                        <span style={{ display: 'block', lineHeight: 1.5 }}>
+                          Controls the tradeoff between <strong style={{ color: '#e5e7eb' }}>avoiding splits</strong> and <strong style={{ color: '#e5e7eb' }}>maximizing revenue</strong>.
+                          <br /><br />
+                          <strong style={{ color: '#e5e7eb' }}>0% (Minimize Splits):</strong> Only split high-value reservations that would otherwise be lost. Reject lower-value reservations that require splitting.
+                          <br /><br />
+                          <strong style={{ color: '#e5e7eb' }}>100% (Maximize Revenue):</strong> Always split if needed to place a reservation, regardless of value.
+                          <br /><br />
+                          <em style={{ color: '#9ca3af' }}>Results always compare against the no-split baseline.</em>
+                        </span>
+                      }
+                    />
+                  }
+                  defaultValue={DEFAULT_SIM_INPUTS.splittingTolerance}
+                  blinking={blinking}
+                  minLabel="Minimize Splits"
+                  maxLabel="Max Revenue"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -644,5 +678,11 @@ const styles: Record<string, React.CSSProperties> = {
     height: '16px',
     accentColor: colors.primary,
     cursor: 'pointer',
+  },
+  splittingToleranceRow: {
+    marginTop: spacing.sm,
+    marginLeft: '24px',
+    paddingLeft: spacing.md,
+    borderLeft: `2px solid ${colors.border}`,
   },
 };

@@ -63,6 +63,8 @@ export interface SimulatorInputs {
   modelPeakTimes: boolean;
   /** When true, reservations may be split across multiple courts as a last resort */
   allowSplitting: boolean;
+  /** 0-100: 0 = minimize splits (reject low-value bookings), 100 = maximize revenue (split freely) */
+  splittingTolerance: number;
 }
 
 export interface IterationResult {
@@ -149,4 +151,5 @@ export const DEFAULT_SIM_INPUTS: SimulatorInputs = {
   overflowMultiplier: 1.0,
   modelPeakTimes: false,
   allowSplitting: false,
+  splittingTolerance: 50,
 };

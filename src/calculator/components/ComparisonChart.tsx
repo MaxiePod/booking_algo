@@ -13,17 +13,17 @@ import { colors, fonts, spacing } from '../../shared/design-tokens';
 import { formatCurrency } from '../utils/formatting';
 
 interface ComparisonChartProps {
-  revenuePodPlay: number;
-  revenueTraditional: number;
+  revenueSmart: number;
+  revenueNaive: number;
 }
 
 export const ComparisonChart: React.FC<ComparisonChartProps> = ({
-  revenuePodPlay,
-  revenueTraditional,
+  revenueSmart,
+  revenueNaive,
 }) => {
   const data = [
-    { name: 'Traditional', revenue: revenueTraditional },
-    { name: 'With PodPlay', revenue: revenuePodPlay },
+    { name: 'Naive', revenue: revenueNaive },
+    { name: 'Smart', revenue: revenueSmart },
   ];
 
   const barColors = [colors.textMuted, colors.success];

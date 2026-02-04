@@ -81,11 +81,15 @@ export function assignCourts(
     if (scores.length === 0) {
       // No single court can fit this reservation
       if (config.allowSplitting) {
-        // Try to split across multiple courts
-        const splitResult = trySplitReservation(res, assignments, config);
-        if (splitResult.length > 0) {
-          assignments.push(...splitResult);
-          continue;
+        // Check if we should split based on tolerance and reservation value
+        const shouldSplit = shouldSplitReservation(res, config);
+        if (shouldSplit) {
+          // Try to split across multiple courts
+          const splitResult = trySplitReservation(res, assignments, config);
+          if (splitResult.length > 0) {
+            assignments.push(...splitResult);
+            continue;
+          }
         }
       }
       unassigned.push(res);
@@ -396,6 +400,50 @@ function compactAssignments(
       }
     }
   }
+}
+
+/**
+ * Post-placement split reduction: try to unsplit reservations that were split.
+ * For each split reservation, check if it could fit on a single court
+ * by moving flexible reservations out of the way.
+ */
+/**
+ * Determine whether a reservation should be split based on tolerance and value.
+ *
+ * The splitting tolerance controls the tradeoff between customer experience
+ * (fewer splits = better experience) and revenue (more splits = fewer rejections).
+ *
+ * At tolerance 0%: Only split high-value reservations (long durations worth the
+ *   customer experience cost). Reject low-value reservations that would need splitting.
+ * At tolerance 100%: Split any reservation to maximize revenue.
+ */
+function shouldSplitReservation(
+  reservation: Reservation,
+  config: AssignerConfig
+): boolean {
+  const tolerance = config.splittingTolerance ?? 50;
+
+  // At 100% tolerance, always try to split (maximize revenue)
+  if (tolerance >= 100) return true;
+
+  // Calculate reservation value using duration as a proxy
+  const duration = slotDuration(reservation.slot);
+  const minSlot = config.schedule.minSlotDuration;
+  const operatingMinutes = config.schedule.closeTime - config.schedule.openTime;
+
+  // Normalize value: 0 = minimum slot duration, 1 = 4 hours (typical long booking)
+  // Using 240 minutes (4 hours) as the benchmark for "high value"
+  const maxValueDuration = Math.min(operatingMinutes, 240);
+  const normalizedValue = maxValueDuration > minSlot
+    ? Math.min(1, (duration - minSlot) / (maxValueDuration - minSlot))
+    : 1;
+
+  // Threshold: at 0% tolerance, need normalizedValue >= 0.75 (top 25% of value)
+  // At 50% tolerance, need normalizedValue >= 0.375
+  // At 100% tolerance, threshold = 0 (split anything)
+  const threshold = (100 - tolerance) / 100 * 0.75;
+
+  return normalizedValue >= threshold;
 }
 
 /**

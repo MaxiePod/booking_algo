@@ -89,6 +89,10 @@ export interface AssignerConfig {
   weights?: ScoringWeights;
   /** When true, reservations may be split across multiple courts as a last resort */
   allowSplitting?: boolean;
+  /** 0-100: Controls willingness to split. 0 = only split high-value, 100 = split freely */
+  splittingTolerance?: number;
+  /** Price per hour, used for revenue-based split decisions */
+  pricePerHour?: number;
 }
 
 /** Tunable weights for the scoring function */
