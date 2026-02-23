@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git pull:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npx vite dev:*)",
+      "Bash(timeout:*)",
+      "Bash(npx tsx:*)",
+      "Bash(findstr:*)",
+      "Bash(ping:*)",
+      "WebFetch(domain:www.podplay.com)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nRedesign UI with PodPlay brand, align calculator with simulator\n\nMajor changes:\n- Replace blue theme with PodPlay grey/cream brand colors\n- Use Roboto thin \\(300 weight\\) throughout the app\n- Add BETA badges to main headers\n- Change default markers from amber to green, fix triangle positioning\n\nCalculator overhaul:\n- Rename to Smart vs Naive comparison \\(was PodPlay vs Traditional\\)\n- Recalibrate model from simulator data \\(k=0.55 for ~1.9pp gap\\)\n- New area chart showing algorithm advantage vs locked %\n- Align defaults with simulator \\(6 courts, 56% util, 11% locked\\)\n\nUI polish:\n- Consistent small triangle markers above slider tracks\n- Update timeline/animation colors to grey palette\n- Version bump to v1.2.2\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push)",
+      "Bash(claude:*)",
+      "Bash(npm show:*)"
+    ]
+  }
+}

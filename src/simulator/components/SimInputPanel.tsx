@@ -47,8 +47,8 @@ const VarianceTooltip: React.FC<{ mean: number }> = ({ mean }) => {
         <path d={narrow.path} fill="none" stroke={narrow.color} strokeWidth="2" opacity="0.9" />
         <path d={wide.path} fill="none" stroke={wide.color} strokeWidth="2" opacity="0.9" />
         {/* Labels */}
-        <text x="28" y="12" fill={narrow.color} fontSize="9" fontWeight="600">CV 10%</text>
-        <text x={W - 68} y="12" fill={wide.color} fontSize="9" fontWeight="600">CV 50%</text>
+        <text x="28" y="12" fill={narrow.color} fontSize="9" fontWeight="300">CV 10%</text>
+        <text x={W - 68} y="12" fill={wide.color} fontSize="9" fontWeight="300">CV 50%</text>
         {/* x-axis: mean label */}
         <line x1={W / 2} y1={0} x2={W / 2} y2={H} stroke="#6b7280" strokeWidth="0.5" strokeDasharray="3,2" />
         <text x={W / 2} y={H + 12} fill="#9ca3af" fontSize="9" textAnchor="middle">{mean}/day</text>

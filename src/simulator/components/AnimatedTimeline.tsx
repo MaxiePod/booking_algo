@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
-import type { AssignmentResult } from '../../algorithm/types';
+import type { AssignmentResult, AssignedReservation } from '../../algorithm/types';
 import { colors, fonts, spacing, borderRadius } from '../../shared/design-tokens';
 import { formatHour } from './CourtTimeline';
 import { useTimelineAnimation } from '../hooks/useTimelineAnimation';
@@ -29,21 +29,21 @@ const HOUR_ROW_HEIGHT = 20;
 
 const BLOCK_COLORS = {
   locked: '#E5E1D8',     // cream/beige — customer-picked (premium)
-  naive: '#6B6B6B',      // medium grey — random placement
-  placed: '#10b981',     // green — optimized by algorithm
-  moving: '#A3A3A3',     // light grey — currently being moved/added
-  ghost: 'rgba(115, 115, 115, 0.2)',  // subtle grey background for ghost
-  ghostBorder: '#737373',  // grey dashed border for ghost
-  newBorder: '#E5E1D8',  // cream border — newly added reservation
-  split: '#8B8B8B',      // grey — split reservation connector
+  naive: '#6B6B6B',      // medium grey — naive/starting position
+  optimized: '#10b981',  // green — optimized position after move
+  moving: '#A3A3A3',     // light grey — currently animating
+  newBlock: '#3B82F6',   // blue — newly placed (wasn't possible before)
+  ghost: 'transparent',  // transparent background for ghost
+  ghostBorder: '#737373', // grey dashed border for ghost outline
 };
 
 // Darker border shades for each block color
 const BORDER_FOR: Record<string, string> = {
   [BLOCK_COLORS.locked]: '#D4CFC4',
   [BLOCK_COLORS.naive]: '#525252',
-  [BLOCK_COLORS.placed]: '#059669',
+  [BLOCK_COLORS.optimized]: '#059669',
   [BLOCK_COLORS.moving]: '#737373',
+  [BLOCK_COLORS.newBlock]: '#2563EB',
 };
 
 export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
@@ -64,7 +64,6 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
   // Capture block positions when pausing
   useEffect(() => {
     if (anim.isPaused && !wasPausedRef.current && blocksContainerRef.current) {
-      // Just became paused - capture current positions
       const container = blocksContainerRef.current;
       const blockElements = container.querySelectorAll('[data-block-key]');
       const positions = new Map<string, FrozenPosition>();
@@ -84,7 +83,6 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
 
       setFrozenPositions(positions);
     } else if (!anim.isPaused && wasPausedRef.current) {
-      // Just resumed - clear frozen positions
       setFrozenPositions(new Map());
     }
     wasPausedRef.current = anim.isPaused;
@@ -110,7 +108,7 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
   const baseMs = currentStep?.type === 'batch-move' ? 4300 : 2300;
   const transitionMs = (baseMs * 0.6) / anim.speed;
 
-  // ── Identify the batch-move step (always index 0 if it exists) ──────
+  // ── Identify the batch-move step ──────────────────────────────────────
   const batchStep = useMemo(() => {
     if (anim.steps.length > 0 && anim.steps[0].type === 'batch-move') {
       return anim.steps[0] as { type: 'batch-move'; moves: MoveDetail[] };
@@ -118,17 +116,19 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
     return null;
   }, [anim.steps]);
 
-  // ── Build block list ────────────────────────────────────────────────
+  // ── Build block list with clear phase logic ───────────────────────────
   const blocks = useMemo(() => {
     const pct = (m: number) => ((m - openTime) / totalMinutes) * 100;
     const wPct = (s: number, e: number) => ((e - s) / totalMinutes) * 100;
 
-    const batchProcessed = batchStep !== null && anim.currentStepIndex >= 0;
-    const batchActive = batchProcessed && anim.currentStepIndex === 0 && anim.isTransitioning;
-    const showGhosts = batchProcessed && anim.phase !== 'done';
+    // Phase flags
+    const isIdle = anim.phase === 'idle';
+    const isDone = anim.phase === 'done';
+    const batchStarted = anim.currentStepIndex >= 0;
+    const batchTransitioning = batchStep && anim.currentStepIndex === 0 && anim.isTransitioning;
+    const batchComplete = batchStarted && !batchTransitioning;
 
-    // Build move lookup: reservationId → MoveDetail[]
-    // Note: Split reservations can have multiple moves with the same ID
+    // Build lookups
     const moveMap = new Map<string, MoveDetail[]>();
     if (batchStep) {
       for (const m of batchStep.moves) {
@@ -138,8 +138,6 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
       }
     }
 
-    // Build add lookup: reservationId → add step info[]
-    // Note: Split reservations can have multiple add steps with the same ID
     const addMap = new Map<string, { stepIndex: number; court: string; start: number; end: number }[]>();
     anim.steps.forEach((s, i) => {
       if (s.type === 'add') {
@@ -148,6 +146,26 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
         addMap.set(s.reservationId, existing);
       }
     });
+
+    // Group assignments by ID
+    const naiveById = new Map<string, AssignedReservation[]>();
+    for (const a of naive.assignments) {
+      const existing = naiveById.get(a.id) || [];
+      existing.push(a);
+      naiveById.set(a.id, existing);
+    }
+
+    const smartById = new Map<string, AssignedReservation[]>();
+    for (const a of smart.assignments) {
+      const existing = smartById.get(a.id) || [];
+      existing.push(a);
+      smartById.set(a.id, existing);
+    }
+
+    // Collect all unique reservation IDs
+    const allIds = new Set<string>();
+    naive.assignments.forEach((a) => allIds.add(a.id));
+    smart.assignments.forEach((a) => allIds.add(a.id));
 
     const result: {
       key: string;
@@ -160,40 +178,35 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
       isGhost: boolean;
       isNew: boolean;
       zIndex: number;
+      noTransition?: boolean; // For split reservations that shouldn't animate
     }[] = [];
 
-    // Group all assignments by ID (handles split reservations with same ID)
-    const naiveById = new Map<string, typeof naive.assignments>();
-    for (const a of naive.assignments) {
-      const existing = naiveById.get(a.id) || [];
-      existing.push(a);
-      naiveById.set(a.id, existing);
+    // Pre-compute all ghost positions (where blocks moved FROM)
+    // This must be done before the main loop so add blocks can check overlap
+    // Only count moves where the court changed (time stays the same)
+    const ghostPositions: { court: string; start: number; end: number }[] = [];
+    if (batchComplete && batchStep) {
+      for (const move of batchStep.moves) {
+        // Only show ghost if court changed (reservations can't move in time)
+        if (move.fromCourt !== move.toCourt) {
+          ghostPositions.push({
+            court: move.fromCourt,
+            start: move.fromStart,
+            end: move.fromEnd,
+          });
+        }
+      }
     }
-
-    const smartById = new Map<string, typeof smart.assignments>();
-    for (const a of smart.assignments) {
-      const existing = smartById.get(a.id) || [];
-      existing.push(a);
-      smartById.set(a.id, existing);
-    }
-
-    // Collect every unique reservation ID
-    const allIds = new Set<string>();
-    naive.assignments.forEach((a) => allIds.add(a.id));
-    smart.assignments.forEach((a) => allIds.add(a.id));
-
-    // Track positions of solid blocks to avoid ghost overlaps
-    const solidBlockPositions: { court: string; start: number; end: number }[] = [];
 
     for (const id of allIds) {
-      const naiveResList = naiveById.get(id) || [];
-      const smartResList = smartById.get(id) || [];
-      const naiveRes = naiveResList[0]; // For mode check
-      const smartRes = smartResList[0]; // For mode check
+      const naiveList = naiveById.get(id) || [];
+      const smartList = smartById.get(id) || [];
+      const moves = moveMap.get(id);
+      const addInfos = addMap.get(id);
 
-      // ── Locked ──────────────────────────────────────────────────
-      if (smartRes?.mode === 'locked' || naiveRes?.mode === 'locked') {
-        const res = smartRes || naiveRes;
+      // ── LOCKED reservations: always show at their position ──────────
+      if ((smartList[0]?.mode === 'locked') || (naiveList[0]?.mode === 'locked')) {
+        const res = smartList[0] || naiveList[0];
         if (!res) continue;
         const row = courtIdToRow.get(res.courtId);
         if (row === undefined) continue;
@@ -207,51 +220,108 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
           highlight: false,
           isGhost: false,
           isNew: false,
-          zIndex: 2,
+          zIndex: 5,
         });
-        solidBlockPositions.push({ court: res.courtId, start: res.slot.start, end: res.slot.end });
         continue;
       }
 
-      // ── Move (part of batch) — handle all parts ─────────────────
-      const moves = moveMap.get(id);
-      if (moves && moves.length > 0) {
-        for (let i = 0; i < moves.length; i++) {
-          const move = moves[i];
-          const atSmart = batchProcessed;
-          const court = atSmart ? move.toCourt : move.fromCourt;
-          const start = atSmart ? move.toStart : move.fromStart;
-          const end = atSmart ? move.toEnd : move.fromEnd;
+      // ── MOVE reservations: animate from naive → smart ───────────────
+      // Filter to only valid moves (times must match - reservations can only change courts)
+      const validMoves = moves?.filter(m =>
+        m.fromStart === m.toStart && m.fromEnd === m.toEnd
+      ) ?? [];
+
+      // DEBUG: Log moves that were filtered out (time mismatch)
+      const invalidMoves = moves?.filter(m =>
+        m.fromStart !== m.toStart || m.fromEnd !== m.toEnd
+      ) ?? [];
+      if (invalidMoves.length > 0) {
+        console.log(`[Animation] INVALID moves filtered out for ${id}:`, invalidMoves.map(m =>
+          `${m.fromCourt}(${m.fromStart}-${m.fromEnd}) -> ${m.toCourt}(${m.toStart}-${m.toEnd})`
+        ));
+      }
+
+      if (validMoves.length > 0) {
+        for (let i = 0; i < validMoves.length; i++) {
+          const move = validMoves[i];
+          const blockKey = validMoves.length > 1 ? `${id}-part${i}` : id;
+
+          // Time slot is fixed - only court changes
+          const start = move.fromStart;
+          const end = move.fromEnd;
+
+          // Determine court and style based on animation phase
+          let court: string;
+          let color: string;
+          let opacity: number;
+          let highlight = false;
+
+          if (isIdle) {
+            // Before animation: show at naive court
+            court = move.fromCourt;
+            color = BLOCK_COLORS.naive;
+            opacity = 0.85;
+          } else if (batchTransitioning) {
+            // During animation: moving to smart court
+            court = move.toCourt;
+            color = BLOCK_COLORS.moving;
+            opacity = 1;
+            highlight = true;
+          } else {
+            // After animation: at smart court
+            court = move.toCourt;
+            color = BLOCK_COLORS.optimized;
+            opacity = 1;
+          }
+
           const row = courtIdToRow.get(court);
           if (row === undefined) continue;
 
-          const blockKey = moves.length > 1 ? `${id}-part${i}` : id;
           result.push({
             key: blockKey,
             courtRow: row,
             startPct: pct(start),
             widthPct: wPct(start, end),
-            color: batchActive
-              ? BLOCK_COLORS.moving
-              : atSmart
-                ? BLOCK_COLORS.placed
-                : BLOCK_COLORS.naive,
-            opacity: atSmart ? 1 : 0.7,
-            highlight: batchActive,
+            color,
+            opacity,
+            highlight,
             isGhost: false,
             isNew: false,
-            zIndex: batchActive ? 10 : atSmart ? 3 : 1,
+            zIndex: highlight ? 10 : 3,
           });
 
-          // Track solid position for ghost collision detection
-          solidBlockPositions.push({ court, start, end });
+          // Add ghost at original position after batch completes
+          // Only show ghost if the court changed
+          if (batchComplete) {
+            const didMove = move.fromCourt !== move.toCourt;
+            if (didMove) {
+              const ghostRow = courtIdToRow.get(move.fromCourt);
+              if (ghostRow !== undefined) {
+                const ghostKey = validMoves.length > 1 ? `${id}-part${i}-ghost` : `${id}-ghost`;
+                result.push({
+                  key: ghostKey,
+                  courtRow: ghostRow,
+                  startPct: pct(move.fromStart),
+                  widthPct: wPct(move.fromStart, move.fromEnd),
+                  color: BLOCK_COLORS.ghost,
+                  opacity: 1,
+                  highlight: false,
+                  isGhost: true,
+                  isNew: false,
+                  zIndex: 0,
+                });
+              }
+            }
+          }
         }
         continue;
       }
 
-      // ── Add (individual step) — handle all parts ────────────────
-      const addInfos = addMap.get(id);
-      if (addInfos && addInfos.length > 0) {
+      // ── ADD reservations: appear after batch, only in smart ─────────
+      // DEFENSIVE: Only process as "add" if the reservation does NOT exist in naive
+      // This prevents reservations with different times from getting blue borders
+      const inNaiveForAdd = naiveById.has(id) && (naiveById.get(id)?.length ?? 0) > 0;
+      if (addInfos && addInfos.length > 0 && !inNaiveForAdd) {
         for (let i = 0; i < addInfos.length; i++) {
           const { stepIndex, court, start, end } = addInfos[i];
           const processed = stepIndex <= anim.currentStepIndex;
@@ -260,47 +330,103 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
           if (row === undefined) continue;
 
           const blockKey = addInfos.length > 1 ? `${id}-part${i}` : id;
+
+          // Only show if step has been processed
+          if (!processed && !active) continue;
+
+          // Check if this add overlaps with any ghost position (freed space)
+          // This validates that the new reservation uses space created by optimization
+          const overlapsGhost = ghostPositions.some(
+            (ghost) =>
+              ghost.court === court &&
+              ghost.start < end &&
+              ghost.end > start
+          );
+
           result.push({
             key: blockKey,
             courtRow: row,
             startPct: pct(start),
             widthPct: wPct(start, end),
-            color: active
-              ? BLOCK_COLORS.moving
-              : processed
-                ? BLOCK_COLORS.placed
-                : 'transparent',
-            opacity: processed ? 1 : 0,
+            color: active ? BLOCK_COLORS.moving : BLOCK_COLORS.newBlock,
+            opacity: active ? 0.8 : 1,
             highlight: active,
             isGhost: false,
-            isNew: processed,
-            zIndex: active ? 10 : processed ? 3 : 0,
+            isNew: true,
+            // Show with emphasis if it overlaps a ghost (using freed space)
+            zIndex: active ? 10 : (overlapsGhost ? 4 : 3),
           });
-
-          if (processed) {
-            solidBlockPositions.push({ court, start, end });
-          }
         }
         continue;
       }
 
-      // ── No step — same position in both or naive-only ───────────
-      // Handle all parts (for split reservations in both naive and smart at same positions)
-      const resList = smartResList.length > 0 ? smartResList : naiveResList;
-      const inSmart = smartResList.length > 0;
+      // ── STATIC reservations: same position in both or no move needed ─
+      const inSmart = smartList.length > 0;
+      const inNaive = naiveList.length > 0;
+
+      // Check if positions actually match between naive and smart
+      const positionsMatch = inSmart && inNaive && smartList.every((s, idx) => {
+        const n = naiveList[idx];
+        return n && s.courtId === n.courtId && s.slot.start === n.slot.start && s.slot.end === n.slot.end;
+      });
+
+      if (inSmart && inNaive && !positionsMatch) {
+        // Same reservation ID but different positions (likely due to splitting)
+        // DEBUG: Log this case to understand why positions don't match
+        console.log(`[Animation] !positionsMatch for ${id}:`);
+        console.log(`  Naive:`, naiveList.map(n => `${n.courtId} @ ${n.slot.start}-${n.slot.end}`));
+        console.log(`  Smart:`, smartList.map(s => `${s.courtId} @ ${s.slot.start}-${s.slot.end}`));
+
+        // Always show at SMART positions - no animation, no switching
+        // This prevents any visual "movement in time"
+        for (let i = 0; i < smartList.length; i++) {
+          const res = smartList[i];
+          const row = courtIdToRow.get(res.courtId);
+          if (row === undefined) continue;
+          const blockKey = smartList.length > 1 ? `${id}-split-part${i}` : `${id}-split`;
+          result.push({
+            key: blockKey,
+            courtRow: row,
+            startPct: pct(res.slot.start),
+            widthPct: wPct(res.slot.start, res.slot.end),
+            color: isDone ? BLOCK_COLORS.optimized : BLOCK_COLORS.naive,
+            opacity: isDone ? 1 : 0.85,
+            highlight: false,
+            isGhost: false,
+            isNew: false,
+            zIndex: 2,
+            noTransition: true,
+          });
+        }
+        continue;
+      }
+
+      const resList = smartList.length > 0 ? smartList : naiveList;
 
       for (let i = 0; i < resList.length; i++) {
         const res = resList[i];
         const row = courtIdToRow.get(res.courtId);
         if (row === undefined) continue;
 
-        // For naive-only reservations (not in smart), check if a moved or added block is
-        // targeting this position.
-        let isBeingReplaced = false;
-        let replacementProcessed = false;
+        const blockKey = resList.length > 1 ? `${id}-part${i}` : id;
 
-        if (!inSmart && anim.phase !== 'idle') {
-          // Check if a moved block is targeting this position
+        // Reservation exists in both at same position - no animation needed
+        if (inSmart && inNaive && positionsMatch) {
+          result.push({
+            key: blockKey,
+            courtRow: row,
+            startPct: pct(res.slot.start),
+            widthPct: wPct(res.slot.start, res.slot.end),
+            color: isDone ? BLOCK_COLORS.optimized : BLOCK_COLORS.naive,
+            opacity: isDone ? 1 : 0.85,
+            highlight: false,
+            isGhost: false,
+            isNew: false,
+            zIndex: 2,
+          });
+        } else if (inNaive && !inSmart) {
+          // Only in naive - check if this position is being used by a smart block
+          // (either a moved block or an add block)
           const isReplacedByMove = batchStep?.moves.some(
             (m) =>
               m.toCourt === res.courtId &&
@@ -308,83 +434,48 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
               m.toEnd > res.slot.start
           ) ?? false;
 
-          // Check if an add block is targeting this position
-          const replacingAddStep = anim.steps.find(
+          const replacingAddInfo = anim.steps.find(
             (step) =>
               step.type === 'add' &&
               step.court === res.courtId &&
               step.start < res.slot.end &&
               step.end > res.slot.start
           );
-          const isReplacedByAdd = !!replacingAddStep;
+          const isReplacedByAdd = !!replacingAddInfo;
 
-          isBeingReplaced = isReplacedByMove || isReplacedByAdd;
+          // Determine visibility based on whether replacement has occurred
+          let shouldShow = true;
+          let opacity = 0.85;
 
-          // Check if the replacement has been processed
-          if (isReplacedByMove) {
-            // Move replacements are processed when batch step is done (currentStepIndex >= 0)
-            replacementProcessed = anim.currentStepIndex >= 0;
-          } else if (isReplacedByAdd && replacingAddStep) {
-            // Add replacements are processed when their step index is reached
-            const addStepIndex = anim.steps.indexOf(replacingAddStep);
-            replacementProcessed = addStepIndex <= anim.currentStepIndex;
+          if (isReplacedByMove && batchStarted) {
+            // A moved block has taken this position - hide completely
+            shouldShow = false;
+          } else if (isReplacedByAdd && replacingAddInfo) {
+            const addStepIndex = anim.steps.indexOf(replacingAddInfo);
+            if (addStepIndex <= anim.currentStepIndex) {
+              // The add has been processed - hide this block
+              shouldShow = false;
+            }
+          } else if (isDone) {
+            // No replacement but done - fade it out
+            opacity = 0.2;
+          }
+
+          if (shouldShow) {
+            result.push({
+              key: blockKey,
+              courtRow: row,
+              startPct: pct(res.slot.start),
+              widthPct: wPct(res.slot.start, res.slot.end),
+              color: BLOCK_COLORS.naive,
+              opacity,
+              highlight: false,
+              isGhost: false,
+              isNew: false,
+              zIndex: 1,
+            });
           }
         }
-
-        const blockKey = resList.length > 1 ? `${id}-part${i}` : id;
-
-        // If being replaced and replacement is processed, don't show at all
-        if (isBeingReplaced && replacementProcessed && anim.phase === 'done') {
-          continue;
-        }
-
-        // If being replaced but replacement not yet processed, show as ghost
-        const showAsGhost = isBeingReplaced && !replacementProcessed;
-
-        result.push({
-          key: blockKey,
-          courtRow: row,
-          startPct: pct(res.slot.start),
-          widthPct: wPct(res.slot.start, res.slot.end),
-          color: showAsGhost ? BLOCK_COLORS.ghost : (anim.phase === 'done' && inSmart ? BLOCK_COLORS.placed : BLOCK_COLORS.naive),
-          opacity: showAsGhost ? 0.5 : (anim.phase === 'done' && !inSmart ? 0.15 : anim.phase === 'done' ? 1 : 0.7),
-          highlight: false,
-          isGhost: showAsGhost,
-          isNew: false,
-          zIndex: showAsGhost ? 0 : (inSmart ? 2 : 1),
-        });
-
-        solidBlockPositions.push({ court: res.courtId, start: res.slot.start, end: res.slot.end });
-      }
-    }
-
-    // Add ghosts for moves, avoiding overlap with solid blocks
-    if (showGhosts && batchStep) {
-      for (const move of batchStep.moves) {
-        const ghostRow = courtIdToRow.get(move.fromCourt);
-        if (ghostRow === undefined) continue;
-
-        // Check if a solid block is at/near this position (skip ghost if so)
-        const hasOverlap = solidBlockPositions.some(
-          (pos) =>
-            pos.court === move.fromCourt &&
-            pos.start < move.fromEnd &&
-            pos.end > move.fromStart
-        );
-        if (hasOverlap) continue;
-
-        result.push({
-          key: `${move.reservationId}-ghost`,
-          courtRow: ghostRow,
-          startPct: pct(move.fromStart),
-          widthPct: wPct(move.fromStart, move.fromEnd),
-          color: BLOCK_COLORS.ghost,
-          opacity: 0.7,
-          highlight: false,
-          isGhost: true,
-          isNew: false,
-          zIndex: 0,
-        });
       }
     }
 
@@ -397,6 +488,8 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
 
   // ── Compute split connectors ────────────────────────────────────────
   const splitConnectors = useMemo(() => {
+    if (anim.phase !== 'done') return [];
+
     const pct = (m: number) => ((m - openTime) / totalMinutes) * 100;
 
     // Group split assignments by reservation ID
@@ -417,11 +510,9 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
       toX: number;
     }[] = [];
 
-    // For each split group, create connectors between consecutive parts
     for (const [id, parts] of splitGroups) {
       if (parts.length < 2) continue;
 
-      // Sort by start time
       const sorted = [...parts].sort((a, b) => a.slot.start - b.slot.start);
 
       for (let i = 0; i < sorted.length - 1; i++) {
@@ -431,7 +522,6 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
         const toRow = courtIdToRow.get(to.courtId);
         if (fromRow === undefined || toRow === undefined) continue;
 
-        // Connect from end of first block to start of second block
         connectors.push({
           id: `${id}-connector-${i}`,
           fromRow,
@@ -443,20 +533,13 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
     }
 
     return connectors;
-  }, [smart.assignments, courtIdToRow, openTime, totalMinutes]);
+  }, [smart.assignments, courtIdToRow, openTime, totalMinutes, anim.phase]);
 
   // ── Derived counts ──────────────────────────────────────────────────
   const trackAreaHeight = courtNames.length * (ROW_HEIGHT + ROW_GAP);
   const gapReduction = Math.round(naive.totalGapMinutes - smart.totalGapMinutes);
   const moveCount = batchStep ? batchStep.moves.length : 0;
   const addCount = anim.steps.filter((s) => s.type === 'add').length;
-  const naiveStranded = naive.gaps.filter((g) => g.stranded);
-  const smartStranded = smart.gaps.filter((g) => g.stranded);
-  const strandedCountDelta = naiveStranded.length - smartStranded.length;
-  const strandedMinDelta = Math.round(
-    naiveStranded.reduce((s, g) => s + g.duration, 0) -
-    smartStranded.reduce((s, g) => s + g.duration, 0)
-  );
   const atLastStep =
     anim.currentStepIndex >= anim.steps.length - 1 || anim.phase === 'done';
 
@@ -468,12 +551,12 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
 
   const subtitleText =
     anim.phase === 'idle'
-      ? 'Showing naive random placement. Press \u25B6 to watch the algorithm optimize.'
+      ? 'Showing current placement (before optimization). Press ▶ to watch the algorithm work.'
       : anim.phase === 'done'
-        ? 'Optimization complete \u2014 all flexible reservations in their smart positions.'
+        ? 'Optimization complete — all reservations in their optimal positions.'
         : inBatchTransition
-          ? 'Repositioning flexible reservations to minimize gaps\u2026'
-          : 'Placing additional reservations in freed slots\u2026';
+          ? 'Moving flexible reservations to minimize gaps…'
+          : 'Placing additional reservations in freed slots…';
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
@@ -491,7 +574,7 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
             disabled={anim.phase === 'playing'}
             title={anim.phase === 'done' ? 'Replay' : 'Play'}
           >
-            {anim.phase === 'done' ? '\u21BB' : '\u25B6'}
+            {anim.phase === 'done' ? '↻' : '▶'}
           </button>
           <button
             style={{
@@ -502,7 +585,7 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
             disabled={anim.phase !== 'playing'}
             title="Pause"
           >
-            {'\u23F8'}
+            {'⏸'}
           </button>
 
           <button
@@ -515,7 +598,7 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
             onClick={anim.reset}
             title="Reset"
           >
-            {'\u21BA'}
+            {'↺'}
           </button>
           <button
             style={{
@@ -529,7 +612,7 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
             disabled={atLastStep}
             title="Step forward"
           >
-            {'\u23ED'}
+            {'⏭'}
           </button>
 
           <div style={styles.divider} />
@@ -560,22 +643,15 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
       {/* Legend */}
       <div style={styles.legend}>
         <LegendItem color={BLOCK_COLORS.locked} label="Locked (customer-picked)" />
-        <LegendItem color={BLOCK_COLORS.naive} label="Naive position" opacity={0.7} />
-        <LegendItem color={BLOCK_COLORS.placed} label="Optimized position" />
-        <LegendItem color={BLOCK_COLORS.placed} label="Newly placed" solidBorder={BLOCK_COLORS.newBorder} />
-        <LegendItem color={BLOCK_COLORS.moving} label="Currently moving" />
+        <LegendItem color={BLOCK_COLORS.naive} label="Starting position" opacity={0.85} />
+        <LegendItem color={BLOCK_COLORS.optimized} label="Optimized position" />
+        <LegendItem color={BLOCK_COLORS.newBlock} label="New (extra capacity)" />
+        <LegendItem color={BLOCK_COLORS.moving} label="Moving" />
         <LegendItem
           color={BLOCK_COLORS.ghostBorder}
           label="Previous position"
           dashed
         />
-        {splitConnectors.length > 0 && (
-          <LegendItem
-            color={BLOCK_COLORS.split}
-            label="Split reservation"
-            dashed
-          />
-        )}
       </div>
 
       {/* Timeline */}
@@ -653,10 +729,10 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
                   border: bp.isGhost
                     ? `2px dashed ${BLOCK_COLORS.ghostBorder}`
                     : bp.isNew
-                      ? `2px solid ${BLOCK_COLORS.newBorder}`
+                      ? `2px solid ${BORDER_FOR[BLOCK_COLORS.newBlock]}`
                       : `1px solid ${BORDER_FOR[bp.color] || 'transparent'}`,
                   borderRadius: '3px',
-                  transition: bp.isGhost || anim.isPaused
+                  transition: bp.isGhost || anim.isPaused || bp.noTransition
                     ? 'none'
                     : `left ${transitionMs}ms ease-in-out, top ${transitionMs}ms ease-in-out, width ${transitionMs}ms ease-in-out, opacity ${transitionMs}ms ease-in-out, background-color 0.3s ease`,
                   opacity: frozen ? parseFloat(frozen.opacity) : bp.opacity,
@@ -692,10 +768,10 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
                     y1={fromY}
                     x2={`${conn.toX}%`}
                     y2={toY}
-                    stroke={BLOCK_COLORS.split}
+                    stroke={colors.textMuted}
                     strokeWidth="2"
                     strokeDasharray="4 2"
-                    opacity={anim.phase === 'done' ? 0.8 : 0.5}
+                    opacity={0.6}
                   />
                 );
               })}
@@ -708,24 +784,18 @@ export const AnimatedTimeline: React.FC<AnimatedTimelineProps> = ({
       {anim.phase === 'done' && (
         <div style={styles.summary}>
           {moveCount > 0 && (
-            <span>{moveCount} reservations repositioned</span>
+            <span>{moveCount} reservation{moveCount !== 1 ? 's' : ''} repositioned</span>
           )}
           {moveCount > 0 && addCount > 0 && (
-            <span style={styles.dot}>{'\u00B7'}</span>
+            <span style={styles.dot}>·</span>
           )}
           {addCount > 0 && (
-            <span>{addCount} additional reservations placed</span>
+            <span style={{ color: BLOCK_COLORS.newBlock }}>{addCount} additional reservation{addCount !== 1 ? 's' : ''} placed</span>
           )}
           {(moveCount > 0 || addCount > 0) && gapReduction > 0 && (
             <>
-              <span style={styles.dot}>{'\u00B7'}</span>
+              <span style={styles.dot}>·</span>
               <span>Gap time reduced by {gapReduction} min</span>
-            </>
-          )}
-          {strandedCountDelta > 0 && (
-            <>
-              <span style={styles.dot}>{'\u00B7'}</span>
-              <span>{strandedCountDelta} fewer stranded gap{strandedCountDelta !== 1 ? 's' : ''} ({strandedMinDelta} min saved)</span>
             </>
           )}
         </div>
@@ -740,9 +810,8 @@ const LegendItem: React.FC<{
   color: string;
   label: string;
   dashed?: boolean;
-  solidBorder?: string;
   opacity?: number;
-}> = ({ color, label, dashed, solidBorder, opacity }) => (
+}> = ({ color, label, dashed, opacity }) => (
   <div style={styles.legendItem}>
     <div
       style={{
@@ -752,9 +821,7 @@ const LegendItem: React.FC<{
         backgroundColor: dashed ? 'transparent' : color,
         border: dashed
           ? `2px dashed ${color}`
-          : solidBorder
-            ? `2px solid ${solidBorder}`
-            : 'none',
+          : 'none',
         opacity: opacity ?? 1,
         flexShrink: 0,
         boxSizing: 'border-box' as const,

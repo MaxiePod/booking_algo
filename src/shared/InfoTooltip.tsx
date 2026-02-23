@@ -96,7 +96,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '50%',
     border: `1px solid ${colors.textMuted}`,
     fontSize: '10px',
-    fontWeight: '700',
+    fontWeight: '300',
     fontStyle: 'italic',
     color: colors.textMuted,
     lineHeight: 1,

@@ -5,7 +5,7 @@ import { colors, fonts, spacing, borderRadius, shadows, transitions } from './sh
 
 type Tab = 'calculator' | 'simulator';
 
-const APP_VERSION = 'v1.2.2';
+const APP_VERSION = 'v1.3.5';
 
 const App: React.FC = () => {
   const [tab, setTab] = useState<Tab>('calculator');

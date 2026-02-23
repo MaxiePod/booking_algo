@@ -204,16 +204,16 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
                     <td style={splitStyles.td}>{(splitting.naiveWithSplit.util * 100).toFixed(1)}%</td>
                   </tr>
                   <tr>
-                    <td style={{ ...splitStyles.td, color: colors.primary, fontWeight: '600' }}>Smart (no split)</td>
+                    <td style={{ ...splitStyles.td, color: colors.primary, fontWeight: '300' }}>Smart (no split)</td>
                     <td style={{ ...splitStyles.td, color: colors.primary }}>{formatCurrency(splitting.smartNoSplit.revenue * multiplier)}</td>
                     <td style={splitStyles.td}>0</td>
                     <td style={splitStyles.td}>{(splitting.smartNoSplit.util * 100).toFixed(1)}%</td>
                   </tr>
                   <tr style={{ backgroundColor: 'rgba(56, 151, 240, 0.08)' }}>
-                    <td style={{ ...splitStyles.td, color: colors.primary, fontWeight: '600' }}>Smart (with split)</td>
-                    <td style={{ ...splitStyles.td, color: colors.successDark, fontWeight: '600' }}>{formatCurrency(splitting.smartWithSplit.revenue * multiplier)}</td>
+                    <td style={{ ...splitStyles.td, color: colors.primary, fontWeight: '300' }}>Smart (with split)</td>
+                    <td style={{ ...splitStyles.td, color: colors.successDark, fontWeight: '300' }}>{formatCurrency(splitting.smartWithSplit.revenue * multiplier)}</td>
                     <td style={{ ...splitStyles.td, color: colors.primary }}>{(splitting.smartWithSplit.splits * multiplier).toFixed(0)}</td>
-                    <td style={{ ...splitStyles.td, fontWeight: '600' }}>{(splitting.smartWithSplit.util * 100).toFixed(1)}%</td>
+                    <td style={{ ...splitStyles.td, fontWeight: '300' }}>{(splitting.smartWithSplit.util * 100).toFixed(1)}%</td>
                   </tr>
                 </tbody>
               </table>
@@ -221,13 +221,13 @@ export const SimResultsPanel: React.FC<SimResultsPanelProps> = ({
               <div style={splitStyles.summary}>
                 <div style={splitStyles.summaryRow}>
                   <span>Smart vs Naive (with split)</span>
-                  <span style={{ color: colors.successDark, fontWeight: '600' }}>
+                  <span style={{ color: colors.successDark, fontWeight: '300' }}>
                     +{formatCurrency((splitting.smartWithSplit.revenue - splitting.naiveWithSplit.revenue) * multiplier)}{periodLabel}
                   </span>
                 </div>
                 <div style={splitStyles.summaryRow}>
                   <span>Splitting benefit (Smart)</span>
-                  <span style={{ color: '#f59e0b', fontWeight: '600' }}>
+                  <span style={{ color: '#f59e0b', fontWeight: '300' }}>
                     +{formatCurrency((splitting.smartWithSplit.revenue - splitting.smartNoSplit.revenue) * multiplier)}{periodLabel}
                   </span>
                 </div>
@@ -515,14 +515,14 @@ const StatRow: React.FC<{
         <InfoTooltip text={tooltip} />
       </span>
     </td>
-    <td style={{ ...styles.td, fontWeight: '600', color: colors.primary }}>
+    <td style={{ ...styles.td, fontWeight: '300', color: colors.primary }}>
       {smart}
     </td>
     <td style={{ ...styles.td, color: colors.textMuted }}>{naive}</td>
     <td
       style={{
         ...styles.td,
-        fontWeight: '600',
+        fontWeight: '300',
         color: good ? colors.successDark : colors.textMuted,
       }}
     >

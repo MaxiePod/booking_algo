@@ -96,37 +96,51 @@ export function computeAnimSteps(
         continue;
       }
 
-      // Find any unused naive part to move from
+      // Find a naive part with the SAME time slot but different court
+      // Reservations can only move between courts, not change time
       let fromNaiveIdx = -1;
       for (let i = 0; i < naiveParts.length; i++) {
-        if (!usedNaiveIndices.has(i)) {
+        if (usedNaiveIndices.has(i)) continue;
+        const na = naiveParts[i];
+        // Time slot must match - only court can differ
+        if (na.slot.start === sa.slot.start && na.slot.end === sa.slot.end) {
           fromNaiveIdx = i;
           break;
         }
       }
 
       if (fromNaiveIdx >= 0) {
-        // Move from naive position to smart position
+        // Move from naive court to smart court (same time slot)
         const na = naiveParts[fromNaiveIdx];
         usedNaiveIndices.add(fromNaiveIdx);
-        moves.push({
-          reservationId: sa.id,
-          fromCourt: na.courtId,
-          fromStart: na.slot.start,
-          fromEnd: na.slot.end,
-          toCourt: sa.courtId,
-          toStart: sa.slot.start,
-          toEnd: sa.slot.end,
-        });
+        // Only create a move if the court actually changed
+        if (na.courtId !== sa.courtId) {
+          moves.push({
+            reservationId: sa.id,
+            fromCourt: na.courtId,
+            fromStart: na.slot.start,
+            fromEnd: na.slot.end,
+            toCourt: sa.courtId,
+            toStart: sa.slot.start,
+            toEnd: sa.slot.end,
+          });
+        }
+        // If same court, no move needed (already handled by exact match above)
       } else {
-        // No naive part available — this is a new addition (e.g., split added a part)
-        adds.push({
-          type: 'add',
-          reservationId: sa.id,
-          court: sa.courtId,
-          start: sa.slot.start,
-          end: sa.slot.end,
-        });
+        // No matching time slot found in naive
+        // Only treat as "add" if reservation doesn't exist in naive AT ALL
+        // If it exists in naive (even with different time), it's not truly new
+        const existsInNaive = naiveParts.length > 0;
+        if (!existsInNaive) {
+          adds.push({
+            type: 'add',
+            reservationId: sa.id,
+            court: sa.courtId,
+            start: sa.slot.start,
+            end: sa.slot.end,
+          });
+        }
+        // If exists in naive with different time, don't add (handled by static rendering)
       }
     }
   }
@@ -150,6 +164,7 @@ export function computeAnimSteps(
     steps.push({ type: 'batch-move', moves });
   }
   steps.push(...adds);
+
   return steps;
 }
 

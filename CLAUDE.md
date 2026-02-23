@@ -1,5 +1,20 @@
 # Booking Algorithm Project Context
 
+## Versioning (IMPORTANT)
+
+**Current Version: v1.3.2** (defined in `src/App.tsx` as `APP_VERSION`)
+
+**ALWAYS update the version after making changes and tell the user the new version number.**
+
+**Default to PATCH increments:**
+- **Patch (x.x.+1)**: DEFAULT for most changes — bug fixes, tweaks, small improvements, refactors
+- **Minor (x.+1.0)**: Only when user requests OR for significant new features (ask user if unsure)
+- **Major (+1.0.0)**: Only for major overhauls (ask user first)
+
+Location: `src/App.tsx` line 8 → `const APP_VERSION = 'vX.Y.Z';`
+
+The version displays in the top-right corner of the app.
+
 ## Project Overview
 Court booking simulator comparing a "smart" algorithm (First-Fit-Decreasing with scoring and compaction) against a "naive" baseline (random court assignment). Built with React + TypeScript + Vite. The simulator generates random reservation sets, runs both assigners, and reports utilization, gaps, fragmentation, and revenue metrics.
 
@@ -101,14 +116,31 @@ npx vite dev              # Start dev server
 - CV: 15%, 40 iterations, $80/hr, $10/hr lock premium
 - `modelPeakTimes: false`, `allowSplitting: false`
 
+## Version History
+
+### v1.3.0 (Feb 2026)
+- **All fonts set to Roboto Light (300)** throughout the app
+- **Animation overhaul**:
+  - Reservations only animate between courts, never in time
+  - Clear phase logic: idle → batch-move → add steps → done
+  - Ghosts show where blocks moved FROM
+  - New blocks (blue) only for reservations that don't exist in naive
+  - Sample day selected based on NAIVE utilization (starting point accuracy)
+- Fixed overlapping block issues in timeline animation
+
+### v1.2.x (Previous)
+- Simulator disclaimer modal
+- Demand pressure enhancements
+- Reservation splitting with 4-way comparison
+- Peak times modeling
+
 ## Files Modified This Session
-- `src/simulator/SimulatorPage.tsx` — Added disclaimer modal integration
-- `src/simulator/components/SimulatorDisclaimerModal.tsx` — NEW: Disclaimer popup
-- `src/simulator/components/SimInputPanel.tsx` — Added checkboxes, enhanced demand pressure tooltip
-- `src/simulator/components/SimResultsPanel.tsx` — Added 4-way splitting comparison, time period toggle
-- `src/simulator/run-simulation.ts` — Added peak time boost, exponential demand scaling, 4-way split tracking
-- `src/simulator/types.ts` — Added `modelPeakTimes`, `allowSplitting`, `PEAK_HOUR_*`, `splitting` comparison object
-- `src/algorithm/court-assigner.ts` — Added `trySplitReservation()` function
-- `src/algorithm/naive-assigner.ts` — Added `naiveTrySplit()` function
-- `src/algorithm/types.ts` — Added `isSplit` to AssignedReservation, `allowSplitting` to AssignerConfig
-- `src/calculator/components/NumberInput.tsx` — Hidden browser spinners, centered number display
+- `src/App.tsx` — Version bump to v1.3.0
+- `src/shared/design-tokens.ts` — All font weights set to 300 (Roboto Light)
+- `src/simulator/components/AnimatedTimeline.tsx` — Complete animation rewrite with phase logic
+- `src/simulator/hooks/useTimelineAnimation.ts` — Fixed move detection (court-only, not time)
+- `src/simulator/run-simulation.ts` — Sample day selection based on naive utilization
+- `src/shared/InfoTooltip.tsx` — Font weight fix
+- `src/simulator/components/SimResultsPanel.tsx` — Font weight fixes
+- `src/simulator/components/SimInputPanel.tsx` — Font weight fixes
+- `index.html` — Global font-weight: 300

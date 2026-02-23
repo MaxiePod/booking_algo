@@ -538,13 +538,13 @@ export function runComparison(inputs: SimulatorInputs): SimulatorResults {
     avgUnassigned: avg(naiveResults.map((r) => r.unassigned.length)),
   };
 
-  // Pick sample day whose utilization is closest to target utilization
-  // This ensures the animation reflects the configured capacity level
+  // Pick sample day whose NAIVE utilization is closest to target utilization
+  // This ensures the animation starting point reflects the "before algorithm" state
   let bestSampleIdx = 0;
   let bestUtilDiff = Infinity;
-  for (let i = 0; i < smartResults.length; i++) {
-    const smartUtil = utilization(smartResults[i], totalMinutes);
-    const utilDiff = Math.abs(smartUtil - targetUtilization);
+  for (let i = 0; i < naiveResults.length; i++) {
+    const naiveUtil = utilization(naiveResults[i], totalMinutes);
+    const utilDiff = Math.abs(naiveUtil - targetUtilization);
     if (utilDiff < bestUtilDiff) {
       bestUtilDiff = utilDiff;
       bestSampleIdx = i;

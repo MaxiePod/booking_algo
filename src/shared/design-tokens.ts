@@ -92,12 +92,12 @@ export const fonts = {
   sizeXxl: '32px',
   size3xl: '40px',
 
-  // Weights - Roboto thin/light focused
+  // Weights - Roboto Light throughout
   weightLight: 300,
   weightNormal: 300,
   weightMedium: 300,
-  weightSemibold: 400,
-  weightBold: 500,
+  weightSemibold: 300,
+  weightBold: 300,
 
   // Line heights
   lineHeightTight: 1.2,
