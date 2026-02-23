@@ -3,3 +3,5 @@ dist/
 dist-widget/
 *.local
 .DS_Store
+.vercel/
+.env

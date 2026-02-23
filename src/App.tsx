@@ -1,23 +1,36 @@
 import React, { useState } from 'react';
 import { SavingsCalculator } from './calculator/SavingsCalculator';
 import { SimulatorPage } from './simulator/SimulatorPage';
+import { AuthModal } from './auth/components/AuthModal';
+import { AdminPanel } from './auth/components/AdminPanel';
+import { AccountMenu } from './auth/components/AccountMenu';
+import { useAuth } from './auth/AuthContext';
 import { colors, fonts, spacing, borderRadius, shadows, transitions } from './shared/design-tokens';
 
-type Tab = 'calculator' | 'simulator';
+type Tab = 'calculator' | 'simulator' | 'admin';
 
-const APP_VERSION = 'v1.3.5';
+const APP_VERSION = 'v1.5.0';
 
 const App: React.FC = () => {
   const [tab, setTab] = useState<Tab>('calculator');
   const [isHovered, setIsHovered] = useState<Tab | null>(null);
+  const { isAuthenticated } = useAuth();
+
+  const switchTab = (newTab: Tab) => {
+    setTab(newTab);
+  };
 
   return (
     <div style={styles.page}>
       {/* Subtle gradient background accent */}
       <div style={styles.bgAccent} />
 
-      {/* Version badge */}
+      {/* Version badge + Account menu */}
+      {isAuthenticated && <AccountMenu onAdminClick={() => switchTab('admin')} />}
       <div style={styles.version}>{APP_VERSION}</div>
+
+      {/* Auth modal (always mounted, visibility controlled by context) */}
+      <AuthModal />
 
       {/* Logo / Brand */}
       <div style={styles.brand}>
@@ -36,7 +49,8 @@ const App: React.FC = () => {
           <div
             style={{
               ...styles.navIndicator,
-              transform: tab === 'calculator' ? 'translateX(0)' : 'translateX(100%)',
+              transform: tab === 'calculator' ? 'translateX(0)' : tab === 'simulator' ? 'translateX(100%)' : 'translateX(200%)',
+              ...(tab === 'admin' ? { display: 'none' } : {}),
             }}
           />
           <button
@@ -45,7 +59,7 @@ const App: React.FC = () => {
               ...(tab === 'calculator' ? styles.tabActive : {}),
               ...(isHovered === 'calculator' && tab !== 'calculator' ? styles.tabHover : {}),
             }}
-            onClick={() => setTab('calculator')}
+            onClick={() => switchTab('calculator')}
             onMouseEnter={() => setIsHovered('calculator')}
             onMouseLeave={() => setIsHovered(null)}
           >
@@ -60,7 +74,7 @@ const App: React.FC = () => {
               ...(tab === 'simulator' ? styles.tabActive : {}),
               ...(isHovered === 'simulator' && tab !== 'simulator' ? styles.tabHover : {}),
             }}
-            onClick={() => setTab('simulator')}
+            onClick={() => switchTab('simulator')}
             onMouseEnter={() => setIsHovered('simulator')}
             onMouseLeave={() => setIsHovered(null)}
           >
@@ -76,6 +90,7 @@ const App: React.FC = () => {
       <div key={tab} className="podplay-fade-in">
         {tab === 'calculator' && <SavingsCalculator />}
         {tab === 'simulator' && <SimulatorPage />}
+        {tab === 'admin' && <AdminPanel />}
       </div>
 
       {/* Footer */}
