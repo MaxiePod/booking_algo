@@ -11,17 +11,19 @@ type Tab = 'calculator' | 'simulator' | 'admin';
 
 const APP_VERSION = 'v1.5.6';
 
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 function getTabFromPath(): Tab {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
-  if (path === '/simulator') return 'simulator';
-  if (path === '/admin') return 'admin';
+  if (path.endsWith('/simulator')) return 'simulator';
+  if (path.endsWith('/admin')) return 'admin';
   return 'calculator';
 }
 
 function getPathForTab(tab: Tab): string {
-  if (tab === 'simulator') return '/simulator';
-  if (tab === 'admin') return '/admin';
-  return '/';
+  if (tab === 'simulator') return `${BASE}/simulator`;
+  if (tab === 'admin') return `${BASE}/admin`;
+  return `${BASE}/` || '/';
 }
 
 const App: React.FC = () => {
