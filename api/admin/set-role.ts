@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireSuperAdmin } from '../_lib/auth-middleware';
-import { db } from '../_lib/firebase-admin';
+import { requireSuperAdmin } from '../_lib/auth-middleware.js';
+import { db } from '../_lib/firebase-admin.js';
 
 const SUPER_ADMIN_EMAIL = 'max@podplay.app';
 

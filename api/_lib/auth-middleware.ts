@@ -1,5 +1,5 @@
 import type { VercelRequest } from '@vercel/node';
-import { adminAuth, db } from './firebase-admin';
+import { adminAuth, db } from './firebase-admin.js';
 
 interface VerifiedUser {
   uid: string;

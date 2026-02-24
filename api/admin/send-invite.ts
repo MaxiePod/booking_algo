@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireAdmin } from '../_lib/auth-middleware';
-import { db } from '../_lib/firebase-admin';
-import { resend } from '../_lib/resend';
+import { requireAdmin } from '../_lib/auth-middleware.js';
+import { db } from '../_lib/firebase-admin.js';
+import { resend } from '../_lib/resend.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
