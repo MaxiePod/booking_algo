@@ -17,16 +17,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+      - run: |
+          mkdir -p _site
+          cat > _site/index.html << 'HTML'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8" />
+            <meta http-equiv="refresh" content="0;url=https://podplay.club" />
+            <title>Redirecting to PodPlay</title>
+          </head>
+          <body>
+            <p>Redirecting to <a href="https://podplay.club">podplay.club</a>...</p>
+          </body>
+          </html>
+          HTML
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: _site
 
   deploy:
     needs: build
