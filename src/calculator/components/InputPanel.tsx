@@ -1,6 +1,5 @@
 import React from 'react';
 import { NumberInput } from './NumberInput';
-import { CurrencyInput } from './CurrencyInput';
 import { SliderInput } from './SliderInput';
 import { InefficiencyCurve } from './InefficiencyCurve';
 import { LIMITS } from '../utils/constants';
@@ -84,12 +83,16 @@ export const InputPanel: React.FC<InputPanelProps> = ({
           blinking={blinking}
         />
 
-        <CurrencyInput
+        <SliderInput
           label="Price per Hour"
           value={inputs.pricePerHour}
           min={LIMITS.price.min}
           max={LIMITS.price.max}
+          prefix="$"
+          unit="/hr"
           onChange={onPriceChange}
+          defaultValue={DEFAULT_INPUTS.pricePerHour}
+          blinking={blinking}
         />
 
         <SliderInput
