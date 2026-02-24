@@ -10,8 +10,6 @@ interface AuthGatedResultsProps {
 export const AuthGatedResults: React.FC<AuthGatedResultsProps> = ({ hasResults, children }) => {
   const { isAuthenticated, showAuthModal } = useAuth();
 
-  console.log('[AuthGate]', { isAuthenticated, hasResults });
-
   // If authenticated, render children normally
   if (isAuthenticated) {
     return <>{children}</>;
