@@ -6,22 +6,33 @@ import { AnimatedTimeline } from './components/AnimatedTimeline';
 import { OccupancyHeatmap } from './components/OccupancyHeatmap';
 import { SimulatorDisclaimerModal } from './components/SimulatorDisclaimerModal';
 import { AuthGatedResults } from '../auth/components/AuthGatedResults';
+import { SimulationDisclaimer, hasAcceptedDisclaimer } from '../auth/components/SimulationDisclaimer';
+import { useAuth } from '../auth/AuthContext';
 import { colors, fonts, spacing, borderRadius } from '../shared/design-tokens';
 
 const DISCLAIMER_STORAGE_KEY = 'podplay-simulator-disclaimer-acknowledged';
 
 export const SimulatorPage: React.FC = () => {
   const { inputs, results, running, maxReservationsPerDay, setInputs, resetInputs, run } = useSimulator();
+  const { isAuthenticated } = useAuth();
 
   const [showDisclaimer, setShowDisclaimer] = React.useState(() => {
     if (typeof window === 'undefined') return false;
     return !sessionStorage.getItem(DISCLAIMER_STORAGE_KEY);
   });
 
+  // Legal disclaimer — shows after login if not previously accepted
+  const [disclaimerAccepted, setDisclaimerAccepted] = React.useState(() => hasAcceptedDisclaimer());
+
   const handleDisclaimerAcknowledge = () => {
     sessionStorage.setItem(DISCLAIMER_STORAGE_KEY, 'true');
     setShowDisclaimer(false);
   };
+
+  // Show legal disclaimer when authenticated but not yet accepted
+  if (isAuthenticated && !disclaimerAccepted) {
+    return <SimulationDisclaimer onAccept={() => setDisclaimerAccepted(true)} />;
+  }
 
   return (
     <div style={styles.wrapper}>
