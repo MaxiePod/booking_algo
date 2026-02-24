@@ -9,7 +9,7 @@ import { colors, fonts, spacing, borderRadius, shadows, transitions } from './sh
 
 type Tab = 'calculator' | 'simulator' | 'admin';
 
-const APP_VERSION = 'v1.5.3';
+const APP_VERSION = 'v1.5.4';
 
 function getTabFromPath(): Tab {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
@@ -167,7 +167,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   signInBtn: {
     position: 'fixed',
-    top: '14px',
+    top: '16px',
     right: '100px',
     zIndex: 1001,
     padding: '6px 16px',

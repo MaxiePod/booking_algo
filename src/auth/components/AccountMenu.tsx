@@ -87,7 +87,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({ onAdminClick }) => {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     position: 'fixed',
-    top: '14px',
+    top: '16px',
     right: '100px',
     zIndex: 1001,
   },
