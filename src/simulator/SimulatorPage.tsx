@@ -5,6 +5,7 @@ import { SimResultsPanel } from './components/SimResultsPanel';
 import { AnimatedTimeline } from './components/AnimatedTimeline';
 import { OccupancyHeatmap } from './components/OccupancyHeatmap';
 import { SimulatorDisclaimerModal } from './components/SimulatorDisclaimerModal';
+import { AuthGatedResults } from '../auth/components/AuthGatedResults';
 import { colors, fonts, spacing, borderRadius } from '../shared/design-tokens';
 
 const DISCLAIMER_STORAGE_KEY = 'podplay-simulator-disclaimer-acknowledged';
@@ -49,21 +50,23 @@ export const SimulatorPage: React.FC = () => {
         onReset={resetInputs}
       />
 
-      <SimResultsPanel results={results} running={running} />
+      <AuthGatedResults hasResults={results !== null && !running}>
+        <SimResultsPanel results={results} running={running} />
 
-      {results && !running && (
-        <AnimatedTimeline
-          smart={results.sampleDay.smart}
-          naive={results.sampleDay.naive}
-          courtNames={results.sampleDay.courtNames}
-          openTime={results.sampleDay.openTime}
-          closeTime={results.sampleDay.closeTime}
-        />
-      )}
+        {results && !running && (
+          <AnimatedTimeline
+            smart={results.sampleDay.smart}
+            naive={results.sampleDay.naive}
+            courtNames={results.sampleDay.courtNames}
+            openTime={results.sampleDay.openTime}
+            closeTime={results.sampleDay.closeTime}
+          />
+        )}
 
-      {results && !running && (
-        <OccupancyHeatmap sampleDay={results.sampleDay} />
-      )}
+        {results && !running && (
+          <OccupancyHeatmap sampleDay={results.sampleDay} />
+        )}
+      </AuthGatedResults>
     </div>
   );
 };
