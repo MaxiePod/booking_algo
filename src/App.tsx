@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SavingsCalculator } from './calculator/SavingsCalculator';
 import { SimulatorPage } from './simulator/SimulatorPage';
 import { AuthModal } from './auth/components/AuthModal';
@@ -9,16 +9,40 @@ import { colors, fonts, spacing, borderRadius, shadows, transitions } from './sh
 
 type Tab = 'calculator' | 'simulator' | 'admin';
 
-const APP_VERSION = 'v1.5.1';
+const APP_VERSION = 'v1.5.2';
+
+function getTabFromPath(): Tab {
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  if (path === '/simulator') return 'simulator';
+  if (path === '/admin') return 'admin';
+  return 'calculator';
+}
+
+function getPathForTab(tab: Tab): string {
+  if (tab === 'simulator') return '/simulator';
+  if (tab === 'admin') return '/admin';
+  return '/';
+}
 
 const App: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('calculator');
+  const [tab, setTab] = useState<Tab>(getTabFromPath);
   const [isHovered, setIsHovered] = useState<Tab | null>(null);
   const { isAuthenticated } = useAuth();
 
-  const switchTab = (newTab: Tab) => {
+  const switchTab = useCallback((newTab: Tab) => {
     setTab(newTab);
-  };
+    const path = getPathForTab(newTab);
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+  }, []);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const handlePopState = () => setTab(getTabFromPath());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   return (
     <div style={styles.page}>
