@@ -9,7 +9,7 @@ import { colors, fonts, spacing, borderRadius, shadows, transitions } from './sh
 
 type Tab = 'calculator' | 'simulator' | 'admin';
 
-const APP_VERSION = 'v1.5.2';
+const APP_VERSION = 'v1.5.3';
 
 function getTabFromPath(): Tab {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
@@ -27,7 +27,7 @@ function getPathForTab(tab: Tab): string {
 const App: React.FC = () => {
   const [tab, setTab] = useState<Tab>(getTabFromPath);
   const [isHovered, setIsHovered] = useState<Tab | null>(null);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, showAuthModal } = useAuth();
 
   const switchTab = useCallback((newTab: Tab) => {
     setTab(newTab);
@@ -49,8 +49,11 @@ const App: React.FC = () => {
       {/* Subtle gradient background accent */}
       <div style={styles.bgAccent} />
 
-      {/* Version badge + Account menu */}
-      {isAuthenticated && <AccountMenu onAdminClick={() => switchTab('admin')} />}
+      {/* Version badge + Account menu / Sign In */}
+      {isAuthenticated
+        ? <AccountMenu onAdminClick={() => switchTab('admin')} />
+        : <button style={styles.signInBtn} onClick={showAuthModal}>Sign In</button>
+      }
       <div style={styles.version}>{APP_VERSION}</div>
 
       {/* Auth modal (always mounted, visibility controlled by context) */}
@@ -160,6 +163,23 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: borderRadius.full,
     border: `1px solid ${colors.border}`,
     zIndex: 1000,
+    letterSpacing: fonts.trackingWide,
+  },
+  signInBtn: {
+    position: 'fixed',
+    top: '14px',
+    right: '100px',
+    zIndex: 1001,
+    padding: '6px 16px',
+    fontSize: fonts.sizeSmall,
+    fontWeight: fonts.weightMedium,
+    fontFamily: fonts.family,
+    color: '#ffffff',
+    backgroundColor: colors.primary,
+    border: 'none',
+    borderRadius: borderRadius.full,
+    cursor: 'pointer',
+    transition: `all ${transitions.fast}`,
     letterSpacing: fonts.trackingWide,
   },
   brand: {
