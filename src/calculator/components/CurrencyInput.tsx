@@ -15,7 +15,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   value,
   min,
   max,
-  step = 5,
+  step = 1,
   onChange,
 }) => {
   const [focused, setFocused] = useState(false);
