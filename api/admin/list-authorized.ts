@@ -17,6 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       role: data.role || 'user',
       authorizedAt: data.grantedAt || now,
       expiresAt: now + 30 * 24 * 60 * 60 * 1000,
+      ...(data.lastLogin != null && { lastLogin: data.lastLogin }),
     };
   });
 

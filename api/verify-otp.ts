@@ -48,6 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const userData = userDoc.data()!;
   const role = userData.role || 'user';
 
+  // Record last login (fire-and-forget — must not block login)
+  db.collection('authorized_users').doc(normalizedEmail).update({ lastLogin: Date.now() }).catch(() => {});
+
   // Create or get Firebase Auth user
   let uid: string;
   try {

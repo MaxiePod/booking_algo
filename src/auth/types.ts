@@ -19,6 +19,7 @@ export interface AuthUser {
   authorizedAt: number;
   expiresAt: number;
   role: UserRole;
+  lastLogin?: number;
 }
 
 export interface AccessRequest {
