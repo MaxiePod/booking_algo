@@ -8,7 +8,7 @@ describe('useCalculator', () => {
 
     expect(result.current.inputs.numCourts).toBe(6);
     expect(result.current.inputs.targetUtilizationPercent).toBe(56);
-    expect(result.current.inputs.pricePerHour).toBe(80);
+    expect(result.current.inputs.pricePerHour).toBe(40);
     expect(result.current.inputs.lockedPercent).toBe(11);
     expect(result.current.inputs.period).toBe('monthly');
 

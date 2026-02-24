@@ -33,8 +33,8 @@ export interface CalculatorResults {
 export const DEFAULT_INPUTS: CalculatorInputs = {
   numCourts: 6,
   targetUtilizationPercent: 56,
-  pricePerHour: 80,
+  pricePerHour: 40,
   lockedPercent: 11,
-  lockPremiumPerHour: 10,
+  lockPremiumPerHour: 5,
   period: 'monthly',
 };
