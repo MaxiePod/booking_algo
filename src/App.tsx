@@ -9,7 +9,7 @@ import { colors, fonts, spacing, borderRadius, shadows, transitions } from './sh
 
 type Tab = 'calculator' | 'simulator' | 'admin';
 
-const APP_VERSION = 'v1.5.5';
+const APP_VERSION = 'v1.5.6';
 
 function getTabFromPath(): Tab {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
@@ -124,6 +124,10 @@ const App: React.FC = () => {
       <footer style={styles.footer}>
         <span style={styles.footerText}>
           Built for court facility operators • Optimized scheduling = More revenue
+        </span>
+        <br />
+        <span style={styles.footerCopy}>
+          &copy; {new Date().getFullYear()} PodPlay Technologies, Inc. All rights reserved.
         </span>
       </footer>
     </div>
@@ -280,6 +284,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: fonts.sizeSmall,
     color: colors.textMuted,
     fontWeight: fonts.weightLight,
+  },
+  footerCopy: {
+    fontSize: fonts.sizeXs,
+    color: colors.textMuted,
+    fontWeight: fonts.weightLight,
+    opacity: 0.7,
   },
 };
 
