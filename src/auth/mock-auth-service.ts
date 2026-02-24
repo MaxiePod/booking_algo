@@ -9,6 +9,7 @@ const SUPER_ADMIN_EMAIL = 'max@podplay.app';
 interface StoredUser {
   email: string;
   role: UserRole;
+  lastLogin?: number;
 }
 
 const DEFAULT_AUTHORIZED: StoredUser[] = [
@@ -121,6 +122,9 @@ export function createMockAuthService(): AuthService {
       if (!entry) {
         return { success: false };
       }
+      // Record last login
+      entry.lastLogin = Date.now();
+      saveStore(store);
       return { success: true, user: makeUser(email, lookupRole(store, email)) };
     },
 
@@ -152,7 +156,10 @@ export function createMockAuthService(): AuthService {
     // --- Admin ---
     async listAuthorized() {
       const store = loadStore();
-      return store.authorizedUsers.map(u => makeUser(u.email, u.role));
+      return store.authorizedUsers.map(u => ({
+        ...makeUser(u.email, u.role),
+        ...(u.lastLogin != null && { lastLogin: u.lastLogin }),
+      }));
     },
 
     async grantAccess(email: string) {

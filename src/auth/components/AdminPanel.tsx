@@ -3,6 +3,21 @@ import { useAuth } from '../AuthContext';
 import type { AuthUser, AccessRequest } from '../types';
 import { colors, fonts, spacing, borderRadius, transitions } from '../../shared/design-tokens';
 
+function formatTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  const years = Math.floor(months / 12);
+  return `${years}y ago`;
+}
+
 export const AdminPanel: React.FC = () => {
   const { isAdmin, isSuperAdmin, user, service } = useAuth();
   const [authorized, setAuthorized] = useState<AuthUser[]>([]);
@@ -114,12 +129,20 @@ export const AdminPanel: React.FC = () => {
           <p style={s.muted}>No authorized users</p>
         ) : (
           <div style={s.list}>
-            {authorized.map(u => (
+            {authorized.map(u => {
+              // Super admin sees lastLogin for everyone; admin sees it only for 'user' role
+              const showLastLogin = isSuperAdmin || u.role === 'user';
+              return (
               <div key={u.email} style={s.listItem}>
                 <div>
                   <span style={s.email}>{u.email}</span>
                   {u.role === 'super_admin' && <span style={s.badgeSuperAdmin}>super admin</span>}
                   {u.role === 'admin' && <span style={s.badge}>admin</span>}
+                  {showLastLogin && (
+                    <span style={s.lastLogin}>
+                      {u.lastLogin ? `Last login: ${formatTimeAgo(u.lastLogin)}` : 'Never logged in'}
+                    </span>
+                  )}
                 </div>
                 <div style={s.requestActions}>
                   {/* Promote/demote: only super_admin can see these, and not on themselves or other super_admins */}
@@ -143,7 +166,8 @@ export const AdminPanel: React.FC = () => {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -297,6 +321,12 @@ const s: Record<string, React.CSSProperties> = {
     marginLeft: spacing.sm,
     textTransform: 'uppercase' as const,
     letterSpacing: fonts.trackingWide,
+  },
+  lastLogin: {
+    display: 'block',
+    fontSize: fonts.sizeXs,
+    color: colors.textMuted,
+    marginTop: '2px',
   },
   requestMsg: {
     fontSize: fonts.sizeSmall,

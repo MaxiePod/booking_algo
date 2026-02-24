@@ -9,7 +9,7 @@ import { colors, fonts, spacing, borderRadius, shadows, transitions } from './sh
 
 type Tab = 'calculator' | 'simulator' | 'admin';
 
-const APP_VERSION = 'v1.5.4';
+const APP_VERSION = 'v1.5.5';
 
 function getTabFromPath(): Tab {
   const path = window.location.pathname.replace(/\/$/, '') || '/';
