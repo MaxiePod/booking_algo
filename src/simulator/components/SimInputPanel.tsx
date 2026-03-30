@@ -295,7 +295,7 @@ export const SimInputPanel: React.FC<SimInputPanelProps> = ({
                   <InfoTooltip text="The time grid granularity in minutes. Reservations start and end on multiples of this value (e.g. 30 min means bookings at :00 and :30)." />
                 </label>
                 <div style={styles.chipRow}>
-                  {[15, 30, 60].map((m) => (
+                  {[15, 30, 60, 90].map((m) => (
                     <button
                       key={m}
                       style={{
