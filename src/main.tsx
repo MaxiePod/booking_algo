@@ -2,9 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AuthProvider } from './auth/AuthContext';
-import { createFirebaseAuthService } from './auth/firebase-auth-service';
+import { createMockAuthService } from './auth/mock-auth-service';
 
-const authService = createFirebaseAuthService();
+const authService = createMockAuthService();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
